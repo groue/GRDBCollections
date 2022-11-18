@@ -9,7 +9,7 @@ class ImmutableDatabasePoolPlayersViewController: UITableViewController {
         super.viewDidLoad()
         
         let request = Player.all().orderedByScore()
-        players = try! request.unsafeFetchResults(DatabasePool.immutable)
+        players = try! DatabasePool.mutable.read { try request.fetchResults($0) }
     }
 
     // MARK: - Table view data source

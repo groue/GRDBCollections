@@ -33,12 +33,8 @@ public final class FetchedResults<Element>: NSObject {
     /// The fetched request.
     private let request: Request
     
-    /// The database reader that provides database access.
-    ///
-    /// It is either a safe `DatabaseSnapshot`, either another unsafe
-    /// `DatabaseReader`. For unsafe readers, users must make sure the database
-    /// content is immutable.
-    private let reader: any DatabaseReader
+    /// The snapshot that provides database access.
+    private let snapshot: any DatabaseSnapshotReader
     
     /// The fetch function (depends on the type of elements).
     private let fetchElements: FetchElements
@@ -72,23 +68,23 @@ public final class FetchedResults<Element>: NSObject {
     ///     - configuration: The configuration.
     ///     - fetchElements: The function that fetches elements.
     fileprivate nonisolated init(
+        _ db: Database,
         request: Request,
-        reader: some DatabaseReader,
         configuration: FetchedResultsConfiguration,
         fetchElements: @escaping FetchElements)
     throws
     {
+        // Report the full request to ValueObservation (including prefetched associations)
+        try db.registerAccess(to: request)
+
+        // Take snapshot
+        self.snapshot = try DatabaseSnapshotPool(db)
+        
+        // Count elements.
+        self.count = try snapshot.read(request.fetchCount)
+        
         self.request = request
-        self.reader = reader
         self.fetchElements = fetchElements
-        
-        // Count elements, and perform early validation of the request.
-        self.count = try reader.unsafeReentrantRead { db in
-            // Report the full request to ValueObservation (including prefetched associations)
-            try db.track(request)
-            return try request.fetchCount(db)
-        }
-        
         self.pageCache.countLimit = configuration.cachedPageCountLimit
         self.adjacentPageCount = configuration.adjacentPageCount
         self.pageSize = configuration.pageSize
@@ -99,10 +95,10 @@ public final class FetchedResults<Element>: NSObject {
         // Prefetches are interrupted and cancelled from `cancelPrefetches()`,
         // when the FetchedResults needs database values that were not
         // prefetched yet: fetching the missing values has the highest priority.
-        self.prefetchQueue.maxConcurrentOperationCount = reader.configuration.maximumReaderCount
+        self.prefetchQueue.maxConcurrentOperationCount = snapshot.configuration.maximumReaderCount
         
         // Copy quality of service of database connection
-        switch reader.configuration.readQoS.qosClass {
+        switch snapshot.configuration.readQoS.qosClass {
         case .background:
             self.prefetchQueue.qualityOfService = .background
         case .utility:
@@ -234,7 +230,7 @@ extension FetchedResults {
         BlockOperation { [self] in
             do {
                 try withIntervalSignpost(name: "Fetch", id: .id(pageIndex)) {
-                    let page = try reader.read { db in
+                    let page = try snapshot.read { db in
                         try fetchPage(db, at: pageIndex)
                     }
                     
@@ -258,7 +254,7 @@ extension FetchedResults {
                 fetchedPages[pageIndex] = nil
             }
         }
-        reader.interrupt()
+        snapshot.interrupt()
     }
 }
 
@@ -281,7 +277,7 @@ extension FetchedResults: RandomAccessCollection {
         // os_log("Block at %ld", log: debugLog, type: .debug, pageIndex)
         let page = withIntervalSignpost(name: "Block", id: .exclusive) {
             cancelPrefetches()
-            let page = try! reader.read { db in
+            let page = try! snapshot.read { db in
                 try fetchPage(db, at: pageIndex)
             }
             setPage(page, at: pageIndex)
@@ -322,22 +318,13 @@ public struct FetchedResultsConfiguration {
 
 extension QueryInterfaceRequest where RowDecoder: DatabaseValueConvertible {
     public func fetchResults(
-        _ snapshot: DatabaseSnapshot,
-        configuration: FetchedResultsConfiguration = .default)
-    throws -> FetchedResults<RowDecoder>
-    {
-        // Safe because snapshot guarantees an immutable database content.
-        try unsafeFetchResults(snapshot, configuration: configuration)
-    }
-    
-    public func unsafeFetchResults(
-        _ reader: some DatabaseReader,
+        _ db: Database,
         configuration: FetchedResultsConfiguration = .default)
     throws -> FetchedResults<RowDecoder>
     {
         try FetchedResults(
+            db,
             request: self,
-            reader: reader,
             configuration: configuration,
             fetchElements: { db, request, minimumCapacity in
                 try Array(request.fetchCursor(db), minimumCapacity: minimumCapacity)
@@ -349,22 +336,13 @@ extension QueryInterfaceRequest where RowDecoder: DatabaseValueConvertible {
 
 extension QueryInterfaceRequest where RowDecoder: DatabaseValueConvertible & StatementColumnConvertible {
     public func fetchResults(
-        _ snapshot: DatabaseSnapshot,
-        configuration: FetchedResultsConfiguration = .default)
-    throws -> FetchedResults<RowDecoder>
-    {
-        // Safe because snapshot guarantees an immutable database content.
-        try unsafeFetchResults(snapshot, configuration: configuration)
-    }
-    
-    public func unsafeFetchResults(
-        _ reader: some DatabaseReader,
+        _ db: Database,
         configuration: FetchedResultsConfiguration = .default)
     throws -> FetchedResults<RowDecoder>
     {
         try FetchedResults(
+            db,
             request: self,
-            reader: reader,
             configuration: configuration,
             fetchElements: { db, request, minimumCapacity in
                 try Array(request.fetchCursor(db), minimumCapacity: minimumCapacity)
@@ -376,22 +354,13 @@ extension QueryInterfaceRequest where RowDecoder: DatabaseValueConvertible & Sta
 
 extension QueryInterfaceRequest where RowDecoder: FetchableRecord {
     public func fetchResults(
-        _ snapshot: DatabaseSnapshot,
-        configuration: FetchedResultsConfiguration = .default)
-    throws -> FetchedResults<RowDecoder>
-    {
-        // Safe because snapshot guarantees an immutable database content.
-        try unsafeFetchResults(snapshot, configuration: configuration)
-    }
-    
-    public func unsafeFetchResults(
-        _ reader: some DatabaseReader,
+        _ db: Database,
         configuration: FetchedResultsConfiguration = .default)
     throws -> FetchedResults<RowDecoder>
     {
         try FetchedResults(
+            db,
             request: self,
-            reader: reader,
             configuration: configuration,
             fetchElements: { db, request, minimumCapacity in
                 try Array(request.fetchCursor(db), minimumCapacity: minimumCapacity)
@@ -403,22 +372,13 @@ extension QueryInterfaceRequest where RowDecoder: FetchableRecord {
 
 extension QueryInterfaceRequest where RowDecoder == Row {
     public func fetchResults(
-        _ snapshot: DatabaseSnapshot,
-        configuration: FetchedResultsConfiguration = .default)
-    throws -> FetchedResults<RowDecoder>
-    {
-        // Safe because snapshot guarantees an immutable database content.
-        try unsafeFetchResults(snapshot, configuration: configuration)
-    }
-    
-    public func unsafeFetchResults(
-        _ reader: some DatabaseReader,
+        _ db: Database,
         configuration: FetchedResultsConfiguration = .default)
     throws -> FetchedResults<RowDecoder>
     {
         try FetchedResults(
+            db,
             request: self,
-            reader: reader,
             configuration: configuration,
             fetchElements: { db, request, minimumCapacity in
                 try Array(request.fetchCursor(db), minimumCapacity: minimumCapacity)

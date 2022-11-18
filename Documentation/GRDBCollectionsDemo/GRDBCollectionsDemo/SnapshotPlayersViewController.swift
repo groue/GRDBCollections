@@ -9,7 +9,7 @@ class SnapshotPlayersViewController: UITableViewController {
         super.viewDidLoad()
         
         let request = Player.all().orderedByScore()
-        players = try! request.fetchResults(DatabasePool.mutable.makeSnapshot())
+        players = try! DatabasePool.mutable.read { try request.fetchResults($0) }
     }
 
     // MARK: - Table view data source
