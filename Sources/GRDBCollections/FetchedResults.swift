@@ -171,24 +171,30 @@ extension FetchedResults {
         let pageIndex = pageIndex(forElementAt: index)
         
         // Pages to prefetch, in the order of prefetch:
-        var pageIndexes = [pageIndex]
+        var pageIndexes: [PageIndex] = []
+        pageIndexes.reserveCapacity(adjacentPageCount)
         
-        var nextPage = pageIndex + 1
-        while pageIndexes.count <= adjacentPageCount / 2, nextPage < pageCount {
-            pageIndexes.append(nextPage)
-            nextPage += 1
+        // Page and next pages
+        var next = pageIndex
+        while pageIndexes.count <= adjacentPageCount / 2, next < pageCount {
+            pageIndexes.append(next)
+            next += 1
         }
-        var previousPage = pageIndex - 1
-        while pageIndexes.count < adjacentPageCount, previousPage >= 0 {
-            pageIndexes.append(previousPage)
-            previousPage -= 1
+        
+        // Previous pages
+        var previous = pageIndex - 1
+        while pageIndexes.count < adjacentPageCount, previous >= 0 {
+            pageIndexes.append(previous)
+            previous -= 1
         }
-        while pageIndexes.count < adjacentPageCount, nextPage < pageCount {
-            pageIndexes.append(nextPage)
-            nextPage += 1
+        
+        // Next pages if there's not enough previous pages
+        while pageIndexes.count < adjacentPageCount, next < pageCount {
+            pageIndexes.append(next)
+            next += 1
         }
+        
         assert(pageIndexes.count == Swift.min(pageCount, adjacentPageCount))
-        
         return pageIndexes
     }
     
@@ -266,12 +272,12 @@ extension FetchedResults: RandomAccessCollection {
     public var endIndex: Index { count }
     
     public subscript(index: Index) -> Element {
-        let pageIndex = pageIndex(forElementAt: index)
+        let (pageIndex, elementIndex) = index.quotientAndRemainder(dividingBy: pageSize)
         if let page = page(at: pageIndex) {
-            if needsInitialPrefetch || index % pageSize == 0 {
+            if needsInitialPrefetch || elementIndex == 0 {
                 prefetchElements(around: index)
             }
-            return page.elements[index - pageIndex * pageSize]
+            return page.elements[elementIndex]
         }
         
         // os_log("Block at %ld", log: debugLog, type: .debug, pageIndex)

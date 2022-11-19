@@ -12,7 +12,6 @@ struct Player: Identifiable {
     var id: Int64?
     var name: String
     var score: Int
-    var data = Data(count: 1024)
 }
 
 extension Player {

@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		563AE68928D7479C00E5DD8B /* GRDBCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 563AE68828D7479C00E5DD8B /* GRDBCollections */; };
-		564EC86128DF092100BADF1B /* ImmutableDatabasePoolPlayersViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 564EC86028DF092100BADF1B /* ImmutableDatabasePoolPlayersViewController.swift */; };
 		5675E72428D611DC003FF740 /* GRDBQuery in Frameworks */ = {isa = PBXBuildFile; productRef = 5675E72328D611DC003FF740 /* GRDBQuery */; };
 		56B1E49A28C4BB450053B9E3 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56B1E49928C4BB450053B9E3 /* AppDelegate.swift */; };
 		56B1E49C28C4BB450053B9E3 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56B1E49B28C4BB450053B9E3 /* SceneDelegate.swift */; };
@@ -22,7 +21,6 @@
 
 /* Begin PBXFileReference section */
 		563AE68728D7478100E5DD8B /* GRDBCollections */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = GRDBCollections; path = ../..; sourceTree = "<group>"; };
-		564EC86028DF092100BADF1B /* ImmutableDatabasePoolPlayersViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImmutableDatabasePoolPlayersViewController.swift; sourceTree = "<group>"; };
 		56B1E49628C4BB450053B9E3 /* GRDBCollectionsDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GRDBCollectionsDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		56B1E49928C4BB450053B9E3 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		56B1E49B28C4BB450053B9E3 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -73,7 +71,6 @@
 				56B1E4BD28C4BE320053B9E3 /* Player.swift */,
 				56B1E4AF28C4BC300053B9E3 /* Persistence.swift */,
 				56B1E49B28C4BB450053B9E3 /* SceneDelegate.swift */,
-				564EC86028DF092100BADF1B /* ImmutableDatabasePoolPlayersViewController.swift */,
 				56B1E4AD28C4BB970053B9E3 /* SnapshotPlayersViewController.swift */,
 				56B1E49F28C4BB450053B9E3 /* Main.storyboard */,
 				56B1E4A228C4BB450053B9E3 /* Assets.xcassets */,
@@ -177,7 +174,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				56B1E49A28C4BB450053B9E3 /* AppDelegate.swift in Sources */,
-				564EC86128DF092100BADF1B /* ImmutableDatabasePoolPlayersViewController.swift in Sources */,
 				56B1E4B028C4BC300053B9E3 /* Persistence.swift in Sources */,
 				56B1E4AE28C4BB970053B9E3 /* SnapshotPlayersViewController.swift in Sources */,
 				56B1E4BE28C4BE330053B9E3 /* Player.swift in Sources */,

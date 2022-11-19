@@ -4,12 +4,31 @@ import GRDBCollections
 
 class SnapshotPlayersViewController: UITableViewController {
     private var players: FetchedResults<Player>!
+    private var cancellable: AnyDatabaseCancellable?
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        let request = Player.all().orderedByScore()
-        players = try! DatabasePool.mutable.read { try request.fetchResults($0) }
+        cancellable = ValueObservation
+            .trackingConstantRegion { db in
+                try Player.all().orderedByScore().fetchResults(db)
+            }
+            .start(
+                in: DatabasePool.shared,
+                scheduling: .immediate,
+                onError: { error in
+                    fatalError("\(error)")
+                }, onChange: { [weak self] players in
+                    guard let self else { return }
+                    self.players = players
+                    self.tableView.reloadData()
+                })
+        
+        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            try! DatabasePool.shared.write { db in
+                _ = try Player(name: Player.randomName(), score: Player.randomScore()).inserted(db)
+            }
+        }
     }
 
     // MARK: - Table view data source
