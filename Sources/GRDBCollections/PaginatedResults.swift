@@ -13,7 +13,6 @@ public class PaginatedResults<Element: Identifiable>: ObservableObject {
     
     let prefetchStrategy: any PaginationPrefetchStrategy
     var loader: (any PageLoaderProtocol)!
-    private var nextPage: AnyHashable?
     
     public init(
         initialElements: [Element] = [],
@@ -80,7 +79,7 @@ public class PaginatedResults<Element: Identifiable>: ObservableObject {
         case .refresh:
             break
         case .fetchNextPage:
-            state = .loading
+            state = .loadingNextPage
         }
     }
     
@@ -91,7 +90,6 @@ public class PaginatedResults<Element: Identifiable>: ObservableObject {
         
         _elements.append(page: newElements, with: mergeStrategy)
         
-        self.nextPage = nextPage
         if nextPage != nil {
             state = .notCompleted
             if prefetchStrategy.needsPrefetchAfterPageLoaded(elementCount: elements.count) {
@@ -103,9 +101,11 @@ public class PaginatedResults<Element: Identifiable>: ObservableObject {
     }
     
     private func setNeedsPrefetch() {
+        // Don't prefetch unless there's unloaded pages
+        guard state != .completed else { return }
+        
         // Don't prefetch if there's an error (avoid endless loop of errors).
         guard error == nil else { return }
-        guard state != .completed else { return }
         
         Task {
             await loader.fetchNextPageIfIdle()
@@ -128,8 +128,8 @@ public enum PaginationState {
     /// A page is missing.
     case notCompleted
     
-    /// A page is loading.
-    case loading
+    /// Next page is loading.
+    case loadingNextPage
 }
 
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)

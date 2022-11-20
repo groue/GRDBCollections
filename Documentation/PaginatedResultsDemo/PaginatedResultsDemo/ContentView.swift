@@ -74,7 +74,7 @@ struct ContentView: View {
                     }
                     
                     switch results.state {
-                    case .loading:
+                    case .loadingNextPage:
                         loadingView
                     case .completed:
                         EmptyView()
@@ -82,6 +82,7 @@ struct ContentView: View {
                         loadNextPageButton
                     }
                 }
+                
                 .refreshable {
                     do {
                         try await results.refresh()
@@ -89,10 +90,12 @@ struct ContentView: View {
                         presentsError = true
                     }
                 }
+                
                 .alert("An Error Occurred", isPresented: $presentsError, presenting: results.error) { error in
                     Button(role: .cancel) { } label: { Text("Cancel") }
                     retryButton(from: error)
                 } message: { Text($0.localizedDescription) }
+                
                 .navigationTitle("Players")
                 .toolbar {
                     Button {
