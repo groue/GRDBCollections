@@ -1,7 +1,7 @@
 import Combine
 import os.log
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 @MainActor
 public class PaginatedResults<Element>: ObservableObject {
     public struct PrefetchAction: Equatable {
@@ -144,7 +144,7 @@ public class PaginatedResults<Element>: ObservableObject {
 
 // MARK: - PaginatedElement
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public struct PaginatedElement<Element> {
     public let element: Element
     let prefetch: (() -> Void)?
@@ -154,12 +154,12 @@ public struct PaginatedElement<Element> {
     }
 }
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 extension PaginatedElement: Identifiable where Element: Identifiable {
     public var id: Element.ID { element.id }
 }
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public enum PaginationState {
     /// No more page to load.
     case completed
@@ -171,7 +171,7 @@ public enum PaginationState {
     case loading
 }
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public enum PaginationError: Error {
     case refresh(Error)
     case nextPage(Error)
@@ -188,7 +188,7 @@ public enum PaginationError: Error {
     }
 }
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public struct Page<Element, PageIdentifier> {
     var elements: [Element]
     var nextPageIdentifier: PageIdentifier?
@@ -199,7 +199,7 @@ public struct Page<Element, PageIdentifier> {
     }
 }
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public protocol PaginatedDataSource<Element> {
     associatedtype Element
     associatedtype PageIdentifier: Hashable
@@ -213,7 +213,7 @@ private enum PaginationAction {
     case fetchNextPage
 }
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 private actor PaginatedResultsCoordinator<DataSource: PaginatedDataSource> {
     typealias Element = DataSource.Element
     typealias PageIdentifier = DataSource.PageIdentifier

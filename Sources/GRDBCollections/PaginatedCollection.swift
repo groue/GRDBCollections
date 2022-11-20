@@ -1,4 +1,4 @@
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public struct PaginatedCollection<Element> {
     var makePrefetch: (_ index: Int, _ elementCount: Int) -> (() -> Void)?
     var elements: [Element]
@@ -12,7 +12,7 @@ public struct PaginatedCollection<Element> {
     }
 }
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 extension PaginatedCollection {
     mutating func removeAll() {
         elements.removeAll()
@@ -23,7 +23,7 @@ extension PaginatedCollection {
     }
 }
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 extension PaginatedCollection: RandomAccessCollection {
     public var count: Int { elements.count }
     public var startIndex: Int { elements.startIndex }

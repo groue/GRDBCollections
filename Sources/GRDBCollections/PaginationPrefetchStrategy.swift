@@ -1,4 +1,4 @@
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public protocol PaginationPrefetchStrategy {
     func needsInitialPrefetch() -> Bool
     func needsPrefetchAfterPageLoaded(elementCount: Int) -> Bool
@@ -7,7 +7,7 @@ public protocol PaginationPrefetchStrategy {
 
 // MARK: - TopPaginationPrefetchStrategy
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public struct TopPaginationPrefetchStrategy: PaginationPrefetchStrategy {
     let count: Int
     
@@ -28,7 +28,7 @@ public struct TopPaginationPrefetchStrategy: PaginationPrefetchStrategy {
     }
 }
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 extension PaginationPrefetchStrategy where Self == TopPaginationPrefetchStrategy {
     /// - parameter count: the minimum number of elements
     public static func minimumElements(_ count: Int) -> Self { .init(count: count) }
@@ -38,7 +38,7 @@ extension PaginationPrefetchStrategy where Self == TopPaginationPrefetchStrategy
 
 // MARK: - BottomPaginationPrefetchStrategy
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public struct BottomPaginationPrefetchStrategy: PaginationPrefetchStrategy {
     let count: Int
     
@@ -59,7 +59,7 @@ public struct BottomPaginationPrefetchStrategy: PaginationPrefetchStrategy {
     }
 }
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 extension PaginationPrefetchStrategy where Self == BottomPaginationPrefetchStrategy {
     /// - parameter count: the number of elements below the last
     ///   visible element.

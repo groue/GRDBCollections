@@ -1,7 +1,7 @@
 #if canImport(SwiftUI)
 import SwiftUI
 
-@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public struct PaginationControl<Element, LoadingContent: View, LoadContent: View>: View {
     @ObservedObject var results: PaginatedResults<Element>
     private var loadingContent: LoadingContent
