@@ -66,6 +66,46 @@ extension PaginatedRequest: PaginationDataSource {
     }
 }
 
+// MARK: - PaginatedRequest + DatabaseValueConvertible
+
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
+extension QueryInterfaceRequest where RowDecoder: DatabaseValueConvertible {
+    public func paginated(
+        in snapshot: some DatabaseSnapshotReader,
+        pageSize: Int)
+    throws -> PaginatedRequest<RowDecoder>
+    {
+        try PaginatedRequest(
+            snapshot: snapshot,
+            request: self,
+            pageSize: pageSize,
+            fetchElements: { db, request, minimumCapacity in
+                try Array(request.fetchCursor(db), minimumCapacity: minimumCapacity)
+            })
+    }
+}
+
+// MARK: - PaginatedRequest + DatabaseValueConvertible & StatementColumnConvertible
+
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
+extension QueryInterfaceRequest where RowDecoder: DatabaseValueConvertible & StatementColumnConvertible {
+    public func paginated(
+        in snapshot: some DatabaseSnapshotReader,
+        pageSize: Int)
+    throws -> PaginatedRequest<RowDecoder>
+    {
+        try PaginatedRequest(
+            snapshot: snapshot,
+            request: self,
+            pageSize: pageSize,
+            fetchElements: { db, request, minimumCapacity in
+                try Array(request.fetchCursor(db), minimumCapacity: minimumCapacity)
+            })
+    }
+}
+
+// MARK: - PaginatedRequest + FetchableRecord
+
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 extension QueryInterfaceRequest where RowDecoder: FetchableRecord {
     public func paginated(
@@ -83,3 +123,21 @@ extension QueryInterfaceRequest where RowDecoder: FetchableRecord {
     }
 }
 
+// MARK: - PaginatedRequest + Row
+
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
+extension QueryInterfaceRequest where RowDecoder == Row {
+    public func paginated(
+        in snapshot: some DatabaseSnapshotReader,
+        pageSize: Int)
+    throws -> PaginatedRequest<RowDecoder>
+    {
+        try PaginatedRequest(
+            snapshot: snapshot,
+            request: self,
+            pageSize: pageSize,
+            fetchElements: { db, request, minimumCapacity in
+                try Array(request.fetchCursor(db), minimumCapacity: minimumCapacity)
+            })
+    }
+}
