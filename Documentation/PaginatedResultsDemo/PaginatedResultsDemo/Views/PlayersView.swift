@@ -61,7 +61,7 @@ struct PlayerList: View {
     var body: some View {
         List(players.elements) { paginatedPlayer in
             PlayerRow(player: paginatedPlayer.element)
-                .onAppear(perform: paginatedPlayer.prefetchIfNeeded)
+                .fetchNextPageIfNeeded(from: paginatedPlayer)
         }
     }
 }

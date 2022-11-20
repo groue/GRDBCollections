@@ -92,6 +92,13 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
         }
     }
     
+    public func removeAllAndRefresh() async throws {
+        _elements.removeAll()
+        error = nil
+        state = .loadingNextPage
+        try await loader.refresh()
+    }
+    
     private func fetchNextPageIfIdle() async {
         // Don't prefetch unless there's unloaded pages
         guard state != .completed else { return }

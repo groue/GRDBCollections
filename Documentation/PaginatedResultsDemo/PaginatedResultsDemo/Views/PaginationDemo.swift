@@ -102,10 +102,9 @@ struct PaginationDemoView: View {
     var body: some View {
         ScrollViewReader { scrollView in
             List {
-                ForEach(results.elements) { paginatedElement in
-                    ItemRow(item: paginatedElement.element)
-                        .onAppear(perform: paginatedElement.prefetchIfNeeded)
-                        .id(paginatedElement.id)
+                ForEach(results.elements) { paginatedItem in
+                    ItemRow(item: paginatedItem.element)
+                        .fetchNextPageIfNeeded(from: paginatedItem)
                 }
                 
                 switch results.state {
@@ -135,7 +134,7 @@ struct PaginationDemoView: View {
                 Button {
                     Task {
                         do {
-                            try await results.refresh()
+                            try await results.removeAllAndRefresh()
                             if let id = results.elements.first?.id {
                                 scrollView.scrollTo(id)
                             }
