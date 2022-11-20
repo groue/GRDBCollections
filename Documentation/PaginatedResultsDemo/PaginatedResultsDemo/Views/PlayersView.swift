@@ -55,7 +55,7 @@ struct PlayersView: View {
 }
 
 struct PlayerList: View {
-    @ObservedObject var players: PaginatedResults<Player>
+    @ObservedObject var players: PaginatedResults<Player, Player.ID>
     @State var presentsError: Bool = false
     
     var body: some View {

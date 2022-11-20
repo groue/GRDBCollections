@@ -3,23 +3,26 @@ import os.log
 
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 @MainActor
-public class PaginatedResults<Element: Identifiable>: ObservableObject {
-    @Published private var _elements: PaginatedCollection<Element>!
+public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
+    @Published private var _elements: PaginatedCollection<Element, ID>!
     @Published public private(set) var state = PaginationState.notCompleted
     @Published public private(set) var error: PaginationError?
     
-    public var elements: PaginatedCollection<Element> { _elements }
-    public let mergeStrategy: PaginationMergeStrategy<Element>
+    public var elements: PaginatedCollection<Element, ID> { _elements }
+    public let mergeStrategy: PaginationMergeStrategy<Element, ID>
     
+    let idKeyPath: KeyPath<Element, ID>
     let prefetchStrategy: any PaginationPrefetchStrategy
     var loader: (any PageLoaderProtocol)!
     
     public init(
         initialElements: [Element] = [],
+        id: KeyPath<Element, ID>,
         dataSource: some PaginationDataSource<Element>,
         prefetchStrategy: some PaginationPrefetchStrategy,
-        mergeStrategy: PaginationMergeStrategy<Element> = .updateOrAppend)
+        mergeStrategy: PaginationMergeStrategy<Element, ID> = .updateOrAppend)
     {
+        self.idKeyPath = id
         self.prefetchStrategy = prefetchStrategy
         self.mergeStrategy = mergeStrategy
         
@@ -32,7 +35,7 @@ public class PaginatedResults<Element: Identifiable>: ObservableObject {
                 self?.didPerform(action, newElements: newElements, nextPage: nextPage)
             })
         
-        self._elements = PaginatedCollection(makePrefetch: { [prefetchStrategy] index, elementCount in
+        self._elements = PaginatedCollection(id: id, makePrefetch: { [prefetchStrategy] index, elementCount in
             guard prefetchStrategy._needsPrefetchOnElementAppear(atIndex: index, elementCount: elementCount) else {
                 return nil
             }
@@ -50,6 +53,21 @@ public class PaginatedResults<Element: Identifiable>: ObservableObject {
                 await fetchNextPageIfIdle()
             }
         }
+    }
+    
+    public convenience init(
+        initialElements: [Element] = [],
+        dataSource: some PaginationDataSource<Element>,
+        prefetchStrategy: some PaginationPrefetchStrategy,
+        mergeStrategy: PaginationMergeStrategy<Element, Element.ID> = .updateOrAppend)
+    where Element: Identifiable, ID == Element.ID
+    {
+        self.init(
+            initialElements: initialElements,
+            id: \.id,
+            dataSource: dataSource,
+            prefetchStrategy: prefetchStrategy,
+            mergeStrategy: mergeStrategy)
     }
     
     public func fetchNextPage() async throws {

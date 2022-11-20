@@ -46,7 +46,7 @@ struct PaginationDemoList: View {
         }
         
         @MainActor
-        var results: PaginatedResults<Item> {
+        var results: PaginatedResults<Item, Item.ID> {
             switch self {
             case .fast:
                 return PaginatedResults(
@@ -96,7 +96,7 @@ struct PaginationDemoList: View {
 }
 
 struct PaginationDemoView: View {
-    @StateObject var results: PaginatedResults<Item>
+    @StateObject var results: PaginatedResults<Item, Item.ID>
     @State var presentsError: Bool = false
     
     var body: some View {
