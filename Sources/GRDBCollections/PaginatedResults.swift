@@ -2,42 +2,8 @@ import Combine
 import os.log
 
 @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+@MainActor
 public class PaginatedResults<Element>: ObservableObject {
-    public struct PaginatedElements: RandomAccessCollection {
-        unowned var results: PaginatedResults?
-        fileprivate var elements: [Element]
-        public var count: Int { elements.count }
-        public var startIndex: Int { elements.startIndex }
-        public var endIndex: Int { elements.endIndex }
-        public func index(after i: Int) -> Int { i + 1 }
-        public subscript(position: Int) -> PaginatedElement<Element> {
-            if let results,
-               results.state != .completed,
-               results.prefetchStrategy.needsPrefetchOnElementAppear(
-                atIndex: position,
-                elementCount: elements.count)
-            {
-                return PaginatedElement(
-                    element: elements[position],
-                    prefetch: results.prefetchIfPossible)
-            } else {
-                return PaginatedElement(
-                    element: elements[position],
-                    prefetch: nil)
-            }
-        }
-        
-        init() {
-            self.results = nil
-            self.elements = []
-        }
-        
-        init(results: PaginatedResults, elements: [Element] = []) {
-            self.results = results
-            self.elements = elements
-        }
-    }
-    
     public struct PrefetchAction: Equatable {
         var id: Int = 0
         var results: PaginatedResults
@@ -51,17 +17,19 @@ public class PaginatedResults<Element>: ObservableObject {
         }
     }
     
-    @Published public private(set) var elements = PaginatedElements()
+    @Published private var _elements: PaginatedCollection<Element>!
     @Published public private(set) var state = PaginationState.notCompleted
     @Published public private(set) var error: PaginationError?
     @Published public private(set) var prefetch: PrefetchAction?
     
+    public var elements: PaginatedCollection<Element> { _elements }
     let prefetchStrategy: any PaginationPrefetchStrategy
     private var nextPage: AnyHashable?
     private var perform: ((PaginationAction) async throws -> Void)!
     private var isBusy: (() async -> Bool)!
     
     public init(
+        initialElements: [Element] = [],
         dataSource: some PaginatedDataSource<Element>,
         prefetchStrategy: some PaginationPrefetchStrategy)
     {
@@ -69,44 +37,27 @@ public class PaginatedResults<Element>: ObservableObject {
         
         let coordinator = PaginatedResultsCoordinator(
             dataSource: dataSource,
-            willPerform: { @MainActor [weak self] action in
-                guard let self else { return }
-                self.error = nil
-                switch action {
-                case .refresh:
-                    break
-                case .fetchNextPage:
-                    self.state = .loading
-                }
+            willPerform: { [weak self] action in
+                self?.willPerform(action)
             },
-            didPerform: { @MainActor [weak self] action, elements, nextPage in
-                guard let self else { return }
-                
-                switch action {
-                case .refresh:
-                    self.elements.elements = elements
-                    #warning("TODO: merge")
-                    // self.elements = OrderedDictionary(elements.lazy.map { ($0.id, $0) }, uniquingKeysWith: { (first, _) in first })
-                case .fetchNextPage:
-                    self.elements.elements.append(contentsOf: elements)
-                    #warning("TODO: merge")
-                    // self.elements.merge(elements.lazy.map { ($0.id, $0) }, uniquingKeysWith: { (_, new) in new })
-                }
-                
-                self.nextPage = nextPage
-                if nextPage != nil {
-                    self.state = .notCompleted
-                    if prefetchStrategy.needsPrefetchAfterPageLoaded(elementCount: self.elements.count) {
-                        self.prefetchIfPossible()
-                    }
-                } else {
-                    self.state = .completed
-                }
+            didPerform: { [weak self] action, newElements, nextPage in
+                self?.didPerform(action, newElements: newElements, nextPage: nextPage)
             })
-        
         self.perform = coordinator.perform
         self.isBusy = coordinator.isBusy
-        self.elements = PaginatedElements(results: self)
+        
+        self._elements = PaginatedCollection(
+            elements: initialElements,
+            makePrefetch: { [prefetchStrategy] index, elementCount in
+                guard prefetchStrategy.needsPrefetchOnElementAppear(atIndex: index, elementCount: elementCount) else {
+                    return nil
+                }
+                return {
+                    Task { [weak self] in
+                        self?.prefetchIfPossible()
+                    }
+                }
+            })
         
         // Initial fetch
         if prefetchStrategy.needsInitialPrefetch() {
@@ -114,7 +65,6 @@ public class PaginatedResults<Element>: ObservableObject {
         }
     }
     
-    @MainActor
     public func fetchNextPage() async throws {
         let previousState = self.state
         do {
@@ -126,7 +76,6 @@ public class PaginatedResults<Element>: ObservableObject {
         }
     }
     
-    @MainActor
     public func refresh() async throws {
         let previousState = self.state
         do {
@@ -138,13 +87,49 @@ public class PaginatedResults<Element>: ObservableObject {
         }
     }
     
+    private func willPerform(_ action: PaginationAction) {
+        self.error = nil
+        
+        switch action {
+        case .refresh:
+            break
+        case .fetchNextPage:
+            self.state = .loading
+        }
+    }
+    
+    private func didPerform(_ action: PaginationAction, newElements: [Element], nextPage: AnyHashable?) {
+        switch action {
+        case .refresh:
+            _elements.removeAll()
+            _elements.append(contentsOf: newElements)
+            #warning("TODO: merge")
+            // elements = OrderedDictionary(newElements.lazy.map { ($0.id, $0) }, uniquingKeysWith: { (first, _) in first })
+        case .fetchNextPage:
+            _elements.append(contentsOf: newElements)
+            #warning("TODO: merge")
+            // elements.merge(newElements.lazy.map { ($0.id, $0) }, uniquingKeysWith: { (_, new) in new })
+        }
+        
+        self.nextPage = nextPage
+        if nextPage != nil {
+            state = .notCompleted
+            if prefetchStrategy.needsPrefetchAfterPageLoaded(elementCount: elements.count) {
+                prefetchIfPossible()
+            }
+        } else {
+            state = .completed
+        }
+    }
+
     func prefetchIfPossible() {
         // Don't prefetch if there's an error (avoid endless loop of errors).
         guard error == nil else { return }
+        guard state != .completed else { return }
         
         // Avoid runtime warning:
         // Publishing changes from within view updates is not allowed, this will cause undefined behavior.
-        Task { @MainActor in
+        Task {
             if await isBusy() {
                 return
             }
@@ -176,13 +161,13 @@ extension PaginatedElement: Identifiable where Element: Identifiable {
 
 @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
 public enum PaginationState {
-    /// No more page to load
+    /// No more page to load.
     case completed
     
-    /// A page is missing, but it is not loading.
+    /// A page is missing.
     case notCompleted
     
-    /// A page is loading
+    /// A page is loading.
     case loading
 }
 
@@ -250,7 +235,7 @@ private actor PaginatedResultsCoordinator<DataSource: PaginatedDataSource> {
     let dataSource: DataSource
     
     private let willPerform: (_ action: PaginationAction) async -> Void
-    private let didPerform: (_ action: PaginationAction, _ elements: [Element], _ nextPage: AnyHashable?) async -> Void
+    private let didPerform: (_ action: PaginationAction, _ newElements: [Element], _ nextPage: AnyHashable?) async -> Void
     
     private var nextPageIdentifier: PageIdentifier?
     private var pageStates: [PageIdentifier: PageState] = [:]
@@ -258,7 +243,7 @@ private actor PaginatedResultsCoordinator<DataSource: PaginatedDataSource> {
     init(
         dataSource: DataSource,
         willPerform: @escaping (_ action: PaginationAction) async -> Void,
-        didPerform: @escaping (_ action: PaginationAction, _ elements: [Element], _ nextPage: AnyHashable?) async -> Void)
+        didPerform: @escaping (_ action: PaginationAction, _ newElements: [Element], _ nextPage: AnyHashable?) async -> Void)
     {
         self.dataSource = dataSource
         self.willPerform = willPerform
@@ -288,7 +273,6 @@ private actor PaginatedResultsCoordinator<DataSource: PaginatedDataSource> {
         
         if pageStates[pageIdentifier] != nil {
             // Already loaded or loading
-            print("Don't fetch \(pageIdentifier)")
             return
         }
         

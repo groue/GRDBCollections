@@ -40,26 +40,26 @@ struct ContentView: View {
 //            delay: .milliseconds(100),
 //            success: { true }),
 //        prefetchStrategy: .minimumElementsAtBottom(50))
-//
-//    // Slow
-//    @StateObject var results = PaginatedResults(
-//        dataSource: DataSource(
-//            pageCount: 20,
-//            pageSize: 5,
-//            delay: .seconds(1),
-//            success: { true }),
-////        prefetchStrategy: .none)
-////        prefetchStrategy: .minimumElements(6))
-//        prefetchStrategy: .minimumElementsAtBottom(4))
-
-    // Slow and Flaky
+    
+    // Slow
     @StateObject var results = PaginatedResults(
         dataSource: DataSource(
             pageCount: 20,
             pageSize: 5,
             delay: .seconds(1),
-            success: { Bool.random() }),
+            success: { true }),
+//        prefetchStrategy: .none)
+//        prefetchStrategy: .minimumElements(6))
         prefetchStrategy: .minimumElementsAtBottom(10))
+//
+//    // Slow and Flaky
+//    @StateObject var results = PaginatedResults(
+//        dataSource: DataSource(
+//            pageCount: 20,
+//            pageSize: 5,
+//            delay: .seconds(1),
+//            success: { Bool.random() }),
+//        prefetchStrategy: .minimumElementsAtBottom(10))
 
     @State var presentsError: Bool = false
     
