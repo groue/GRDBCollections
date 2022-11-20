@@ -8,7 +8,7 @@ struct Player: Identifiable {
     var name: String
 }
 
-struct DataSource: PaginatedDataSource {
+struct DataSource: PaginationDataSource {
     var firstPageIdentifier: Int { 0 }
     var pageCount: Int
     var pageSize: Int
@@ -65,73 +65,57 @@ struct ContentView: View {
     
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(results.elements) { paginatedElement in
-                    PlayerRow(player: paginatedElement.element)
-                        .onAppear(perform: paginatedElement.prefetchIfNeeded)
+            ScrollViewReader { scrollView in
+                List {
+                    ForEach(results.elements) { paginatedElement in
+                        PlayerRow(player: paginatedElement.element)
+                            .onAppear(perform: paginatedElement.prefetchIfNeeded)
+                            .id(paginatedElement.id)
+                    }
+                    
+                    switch results.state {
+                    case .loading:
+                        loadingView
+                    case .completed:
+                        EmptyView()
+                    case .notCompleted:
+                        loadNextPageButton
+                    }
                 }
-                
-                paginationControl
-            }
-            .refreshable {
-                do {
-                    try await results.refresh()
-                } catch {
-                    presentsError = true
+                .refreshable {
+                    do {
+                        try await results.refresh()
+                    } catch {
+                        presentsError = true
+                    }
                 }
-            }
-            .task(id: results.prefetch) {
-                await results.prefetch?()
-            }
-            .alert("An Error Occurred", isPresented: $presentsError, presenting: results.error) { error in
-                Button(role: .cancel) { } label: { Text("Cancel") }
-                Button {
-                    Task {
-                        switch error {
-                        case .refresh:
+                .alert("An Error Occurred", isPresented: $presentsError, presenting: results.error) { error in
+                    Button(role: .cancel) { } label: { Text("Cancel") }
+                    retryButton(from: error)
+                } message: { Text($0.localizedDescription) }
+                .navigationTitle("Players")
+                .toolbar {
+                    Button {
+                        Task {
                             do {
                                 try await results.refresh()
-                            } catch {
-                                presentsError = true
-                            }
-                        case .nextPage:
-                            do {
-                                try await results.fetchNextPage()
+                                if let id = results.elements.first?.id {
+                                    scrollView.scrollTo(id)
+                                }
                             } catch {
                                 presentsError = true
                             }
                         }
-                    }
-                } label: { Text("Retry") }
-            } message: { error in
-                Text(error.localizedDescription)
-            }
-            .navigationTitle("Players")
-            .toolbar {
-                Button {
-                    Task {
-                        do {
-                            try await results.refresh()
-                        } catch {
-                            presentsError = true
-                        }
-                    }
-                } label: { Text("Refresh") }
+                    } label: { Text("Refresh") }
+                }
             }
         }
     }
     
-    var paginationControl: some View {
-        PaginationControl(
-            results: results,
-            loading: {
-                Text("Loading…")
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .foregroundStyle(.secondary)
-            },
-            load: {
-                loadNextPageButton
-            })
+    var loadingView: some View {
+        Text("Loading…")
+            .frame(maxWidth: .infinity, alignment: .center)
+            .foregroundStyle(.secondary)
     }
     
     var loadNextPageButton: some View {
@@ -147,6 +131,27 @@ struct ContentView: View {
             Text("Load Next Page")
                 .frame(maxWidth: .infinity, alignment: .center)
         }
+    }
+    
+    func retryButton(from error: PaginationError) -> some View {
+        Button {
+            Task {
+                switch error {
+                case .refresh:
+                    do {
+                        try await results.refresh()
+                    } catch {
+                        presentsError = true
+                    }
+                case .nextPage:
+                    do {
+                        try await results.fetchNextPage()
+                    } catch {
+                        presentsError = true
+                    }
+                }
+            }
+        } label: { Text("Retry") }
     }
 }
 

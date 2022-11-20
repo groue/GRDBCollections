@@ -32,7 +32,7 @@ extension PaginatedCollection {
             
         case .ignoreOrAppend:
             let appendedElements = newElements.lazy.map { ($0.id, $0) }
-            dictionary.merge(appendedElements, uniquingKeysWith: { (old, new) in old })
+            dictionary.merge(appendedElements, uniquingKeysWith: { (old, _) in old })
             
         case let .custom(append):
             append(newElements, &dictionary)
@@ -51,4 +51,19 @@ extension PaginatedCollection: RandomAccessCollection {
             element: dictionary.values[position],
             prefetch: makePrefetch(position, dictionary.count))
     }
+}
+
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
+public struct PaginatedElement<Element: Identifiable> {
+    public let element: Element
+    let prefetch: (() -> Void)?
+    
+    public func prefetchIfNeeded() {
+        prefetch?()
+    }
+}
+
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
+extension PaginatedElement: Identifiable {
+    public var id: Element.ID { element.id }
 }
