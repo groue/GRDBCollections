@@ -10,37 +10,45 @@ struct Item: Identifiable {
 
 struct DemoDataSource: PaginationDataSource {
     var firstPageIdentifier: Int { 0 }
+    
+    /// The number of pages
     var pageCount: Int
+    
+    /// The number of items per page
     var pageSize: Int
+    
+    /// The number of items with a reused id in a page
+    var overlap: Int
+    
+    /// The delay before the page is produced
     var delay: Duration
-    var success: () -> Bool
+    
+    /// A closure that can prevent the page from being produced by throwing an error
+    var check: (() throws -> Void)?
     
     func page(at pageIdentifier: Int) async throws -> Page<Item, Int> {
         try await Task.sleep(for: delay)
-        if success() {
-            let elements = (0..<pageSize).map {
-                let id = Int.random(in: 0...1000)
-                return Item(id: id, name: "Page \(pageIdentifier) / Item \($0)")
-            }
-            return Page(
-                elements: elements,
-                nextPageIdentifier: (pageIdentifier + 1) >= pageCount ? nil : pageIdentifier + 1)
-        } else {
-            throw URLError(.notConnectedToInternet)
+        try check?()
+        let elements = (0..<pageSize).map { index in
+            let id = pageIdentifier * (pageSize - overlap) + index
+            return Item(id: id, name: "Page \(pageIdentifier) / Item \(index)")
         }
+        return Page(
+            elements: elements,
+            nextPageIdentifier: (pageIdentifier + 1) >= pageCount ? nil : pageIdentifier + 1)
     }
 }
 
 struct PaginationDemoList: View {
     enum DemoCase: CaseIterable, Equatable, Hashable {
         case fast
-        case slow
+        case slowOverlap
         case slowAndFlaky
         
         var localizedName: LocalizedStringKey {
             switch self {
             case .fast: return "Fast"
-            case .slow: return "Slow"
+            case .slowOverlap: return "Slow + Overlap"
             case .slowAndFlaky: return "Slow And Flaky"
             }
         }
@@ -53,30 +61,32 @@ struct PaginationDemoList: View {
                     dataSource: DemoDataSource(
                         pageCount: 20,
                         pageSize: 50,
-                        delay: .milliseconds(100),
-                        success: { true }),
-                    prefetchStrategy: .minimumElementsAtBottom(50),
-                    mergeStrategy: .deleteAndAppend)
+                        overlap: 0,
+                        delay: .milliseconds(100)),
+                    prefetchStrategy: .infiniteScroll(minimumElementsAtBottom: 50))
                 
-            case .slow:
+            case .slowOverlap:
                 return PaginatedResults(
                     dataSource: DemoDataSource(
-                        pageCount: 20,
-                        pageSize: 5,
-                        delay: .seconds(1),
-                        success: { true }),
-                    prefetchStrategy: .minimumElementsAtBottom(10),
-                    mergeStrategy: .deleteAndAppend)
+                        pageCount: 5,
+                        pageSize: 10,
+                        overlap: 2,
+                        delay: .seconds(1)),
+                    prefetchStrategy: .infiniteScroll(minimumElementsAtBottom: 5))
                 
             case .slowAndFlaky:
                 return PaginatedResults(
                     dataSource: DemoDataSource(
-                        pageCount: 20,
+                        pageCount: 5,
                         pageSize: 5,
+                        overlap: 0,
                         delay: .seconds(1),
-                        success: { Bool.random() }),
-                    prefetchStrategy: .minimumElementsAtBottom(10),
-                    mergeStrategy: .deleteAndAppend)
+                        check: {
+                            if Bool.random() {
+                                throw URLError(.notConnectedToInternet)
+                            }
+                        }),
+                    prefetchStrategy: .infiniteScroll(minimumElementsAtBottom: 5))
             }
         }
     }
@@ -111,11 +121,12 @@ struct PaginationDemoView: View {
                 case .loadingNextPage:
                     loadingView
                 case .completed:
-                    EmptyView()
+                    completedView
                 case .notCompleted:
                     loadNextPageButton
                 }
             }
+            .listStyle(.plain)
             
             .refreshable {
                 do {
@@ -129,8 +140,12 @@ struct PaginationDemoView: View {
                 Button(role: .cancel) { } label: { Text("Cancel") }
                 retryButton(from: error)
             } message: { Text($0.localizedDescription) }
-        
+            
             .toolbar {
+                if results.state == .loadingNextPage {
+                    ProgressView().progressViewStyle(.circular)
+                }
+                
                 Button {
                     Task {
                         do {
@@ -145,6 +160,12 @@ struct PaginationDemoView: View {
                 } label: { Text("Refresh") }
             }
         }
+    }
+    
+    var completedView: some View {
+        Text("End of List")
+            .frame(maxWidth: .infinity, alignment: .center)
+            .foregroundStyle(.secondary)
     }
     
     var loadingView: some View {

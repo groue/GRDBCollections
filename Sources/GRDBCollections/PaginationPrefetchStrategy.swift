@@ -47,7 +47,7 @@ public struct BottomPaginationPrefetchStrategy: PaginationPrefetchStrategy {
     }
     
     public func _needsInitialPrefetch() -> Bool {
-        count > 0
+        true
     }
     
     public func _needsPrefetchAfterPageLoaded(elementCount: Int) -> Bool {
@@ -63,5 +63,7 @@ public struct BottomPaginationPrefetchStrategy: PaginationPrefetchStrategy {
 extension PaginationPrefetchStrategy where Self == BottomPaginationPrefetchStrategy {
     /// - parameter count: the number of elements below the last
     ///   visible element.
-    public static func minimumElementsAtBottom(_ count: Int) -> Self { .init(count: count) }
+    public static func infiniteScroll(minimumElementsAtBottom count: Int) -> Self { .init(count: count) }
+    
+    public static var firstPage: Self { .init(count: 0) }
 }

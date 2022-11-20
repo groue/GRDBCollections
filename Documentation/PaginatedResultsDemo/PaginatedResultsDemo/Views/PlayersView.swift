@@ -43,7 +43,7 @@ struct PlayersView: View {
         NavigationStack {
             PlayerList(players: PaginatedResults(
                 dataSource: players,
-                prefetchStrategy: .minimumElementsAtBottom(100)))
+                prefetchStrategy: .infiniteScroll(minimumElementsAtBottom: 100)))
             .navigationTitle("Players")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
