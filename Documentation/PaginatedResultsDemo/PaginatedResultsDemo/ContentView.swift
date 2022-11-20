@@ -4,7 +4,7 @@ import SwiftUI
 import os.log
 
 struct Player: Identifiable {
-    var id: String
+    var id: Int
     var name: String
 }
 
@@ -19,7 +19,7 @@ struct DataSource: PaginatedDataSource {
         try await Task.sleep(for: delay)
         if success() {
             let elements = (0..<pageSize).map {
-                let id = UUID().uuidString
+                let id = Int.random(in: 0...1000)
                 return Player(id: id, name: "Page \(pageIdentifier) - Item \($0)")
             }
             return Page(
@@ -32,25 +32,25 @@ struct DataSource: PaginatedDataSource {
 }
 
 struct ContentView: View {
-//    // Fast
-//    @StateObject var results = PaginatedResults(
-//        dataSource: DataSource(
-//            pageCount: 20,
-//            pageSize: 50,
-//            delay: .milliseconds(100),
-//            success: { true }),
-//        prefetchStrategy: .minimumElementsAtBottom(50))
-    
-    // Slow
+    // Fast
     @StateObject var results = PaginatedResults(
         dataSource: DataSource(
             pageCount: 20,
-            pageSize: 5,
-            delay: .seconds(1),
+            pageSize: 50,
+            delay: .milliseconds(100),
             success: { true }),
-//        prefetchStrategy: .none)
+        prefetchStrategy: .minimumElementsAtBottom(50))
+    
+//    // Slow
+//    @StateObject var results = PaginatedResults(
+//        dataSource: DataSource(
+//            pageCount: 20,
+//            pageSize: 5,
+//            delay: .seconds(1),
+//            success: { true }),
+//        prefetchStrategy: .noPrefetch)
 //        prefetchStrategy: .minimumElements(6))
-        prefetchStrategy: .minimumElementsAtBottom(10))
+//        prefetchStrategy: .minimumElementsAtBottom(10))
 //
 //    // Slow and Flaky
 //    @StateObject var results = PaginatedResults(
@@ -156,7 +156,7 @@ struct PlayerRow: View {
     var body: some View {
         VStack(alignment: .leading) {
             Text(player.name)
-            Text(player.id)
+            Text("\(player.id)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

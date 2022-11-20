@@ -2,11 +2,11 @@
 import SwiftUI
 
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
-public struct PaginationControl<Element, LoadingContent: View, LoadContent: View>: View {
+public struct PaginationControl<Element: Identifiable, LoadingContent: View, LoadContent: View>: View {
     @ObservedObject var results: PaginatedResults<Element>
     private var loadingContent: LoadingContent
     private var loadContent: LoadContent
-
+    
     public init(
         results: PaginatedResults<Element>,
         @ViewBuilder loading: () -> LoadingContent,
