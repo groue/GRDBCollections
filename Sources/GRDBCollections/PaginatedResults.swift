@@ -12,7 +12,10 @@ public class PaginatedResults<Element>: ObservableObject {
         public func index(after i: Int) -> Int { i + 1 }
         public subscript(position: Int) -> PaginatedElement<Element> {
             if let results,
-               elements.distance(from: position, to: endIndex) <= results.threshold
+               results.state != .completed,
+               results.prefetchStrategy.needsPrefetchOnElementAppear(
+                atIndex: position,
+                elementCount: elements.count)
             {
                 return PaginatedElement(
                     element: elements[position],
@@ -53,16 +56,16 @@ public class PaginatedResults<Element>: ObservableObject {
     @Published public private(set) var error: PaginationError?
     @Published public private(set) var prefetch: PrefetchAction?
     
-    let threshold: Int
+    let prefetchStrategy: any PaginationPrefetchStrategy
     private var nextPage: AnyHashable?
     private var perform: ((PaginationAction) async throws -> Void)!
     private var isBusy: (() async -> Bool)!
     
-    /// - parameter threshold: the number of bottom elements that trigger the
-    ///   next page to be fetched when they appear on screen. If zero, next page
-    ///   is never automatically fetched.
-    public init(dataSource: some PaginatedDataSource<Element>, threshold: Int) {
-        self.threshold = threshold
+    public init(
+        dataSource: some PaginatedDataSource<Element>,
+        prefetchStrategy: some PaginationPrefetchStrategy)
+    {
+        self.prefetchStrategy = prefetchStrategy
         
         let coordinator = PaginatedResultsCoordinator(
             dataSource: dataSource,
@@ -93,6 +96,9 @@ public class PaginatedResults<Element>: ObservableObject {
                 self.nextPage = nextPage
                 if nextPage != nil {
                     self.state = .notCompleted
+                    if prefetchStrategy.needsPrefetchAfterPageLoaded(elementCount: self.elements.count) {
+                        self.prefetchIfPossible()
+                    }
                 } else {
                     self.state = .completed
                 }
@@ -103,8 +109,8 @@ public class PaginatedResults<Element>: ObservableObject {
         self.elements = PaginatedElements(results: self)
         
         // Initial fetch
-        if threshold > 0 {
-            self.prefetch = PrefetchAction(results: self)
+        if prefetchStrategy.needsInitialPrefetch() {
+            prefetch = PrefetchAction(results: self)
         }
     }
     
@@ -150,6 +156,8 @@ public class PaginatedResults<Element>: ObservableObject {
         }
     }
 }
+
+// MARK: - PaginatedElement
 
 @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
 public struct PaginatedElement<Element> {

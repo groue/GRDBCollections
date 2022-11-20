@@ -32,15 +32,15 @@ struct DataSource: PaginatedDataSource {
 }
 
 struct ContentView: View {
-    // Fast
-    @StateObject var results = PaginatedResults(
-        dataSource: DataSource(
-            pageCount: 20,
-            pageSize: 50,
-            delay: .milliseconds(100),
-            success: { true }),
-        threshold: 50)
-
+//    // Fast
+//    @StateObject var results = PaginatedResults(
+//        dataSource: DataSource(
+//            pageCount: 20,
+//            pageSize: 50,
+//            delay: .milliseconds(100),
+//            success: { true }),
+//        prefetchStrategy: .minimumElementsAtBottom(50))
+//
 //    // Slow
 //    @StateObject var results = PaginatedResults(
 //        dataSource: DataSource(
@@ -48,16 +48,18 @@ struct ContentView: View {
 //            pageSize: 5,
 //            delay: .seconds(1),
 //            success: { true }),
-//        threshold: 10)
-//
-//    // Slow and Flaky
-//    @StateObject var results = PaginatedResults(
-//        dataSource: DataSource(
-//            pageCount: 20,
-//            pageSize: 5,
-//            delay: .seconds(1),
-//            success: { Bool.random() }),
-//        threshold: 10)
+////        prefetchStrategy: .none)
+////        prefetchStrategy: .minimumElements(6))
+//        prefetchStrategy: .minimumElementsAtBottom(4))
+
+    // Slow and Flaky
+    @StateObject var results = PaginatedResults(
+        dataSource: DataSource(
+            pageCount: 20,
+            pageSize: 5,
+            delay: .seconds(1),
+            success: { Bool.random() }),
+        prefetchStrategy: .minimumElementsAtBottom(10))
 
     @State var presentsError: Bool = false
     
