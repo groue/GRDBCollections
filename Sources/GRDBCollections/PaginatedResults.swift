@@ -33,20 +33,22 @@ public class PaginatedResults<Element: Identifiable>: ObservableObject {
             })
         
         self._elements = PaginatedCollection(makePrefetch: { [prefetchStrategy] index, elementCount in
-            guard prefetchStrategy.needsPrefetchOnElementAppear(atIndex: index, elementCount: elementCount) else {
+            guard prefetchStrategy._needsPrefetchOnElementAppear(atIndex: index, elementCount: elementCount) else {
                 return nil
             }
             return {
                 Task { [weak self] in
-                    self?.setNeedsPrefetch()
+                    await self?.fetchNextPageIfIdle()
                 }
             }
         })
         
         _elements.append(page: initialElements, with: mergeStrategy)
         
-        if prefetchStrategy.needsInitialPrefetch() {
-            setNeedsPrefetch()
+        if prefetchStrategy._needsInitialPrefetch() {
+            Task {
+                await fetchNextPageIfIdle()
+            }
         }
     }
     
@@ -72,6 +74,22 @@ public class PaginatedResults<Element: Identifiable>: ObservableObject {
         }
     }
     
+    private func fetchNextPageIfIdle() async {
+        // Don't prefetch unless there's unloaded pages
+        guard state != .completed else { return }
+        
+        // Don't prefetch if there's an error (avoid endless loop of errors).
+        guard error == nil else { return }
+        
+        let previousState = state
+        do {
+            try await loader.fetchNextPageIfIdle()
+        } catch {
+            self.error = .nextPage(error)
+            self.state = previousState
+        }
+    }
+    
     private func willPerform(_ action: PaginationAction) {
         error = nil
         
@@ -92,23 +110,13 @@ public class PaginatedResults<Element: Identifiable>: ObservableObject {
         
         if nextPage != nil {
             state = .notCompleted
-            if prefetchStrategy.needsPrefetchAfterPageLoaded(elementCount: elements.count) {
-                setNeedsPrefetch()
+            if prefetchStrategy._needsPrefetchAfterPageLoaded(elementCount: elements.count) {
+                Task {
+                    await fetchNextPageIfIdle()
+                }
             }
         } else {
             state = .completed
-        }
-    }
-    
-    private func setNeedsPrefetch() {
-        // Don't prefetch unless there's unloaded pages
-        guard state != .completed else { return }
-        
-        // Don't prefetch if there's an error (avoid endless loop of errors).
-        guard error == nil else { return }
-        
-        Task {
-            await loader.fetchNextPageIfIdle()
         }
     }
 }
@@ -117,7 +125,7 @@ public class PaginatedResults<Element: Identifiable>: ObservableObject {
 protocol PageLoaderProtocol {
     func fetchNextPage() async throws
     func refresh() async throws
-    func fetchNextPageIfIdle() async
+    func fetchNextPageIfIdle() async throws
 }
 
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)

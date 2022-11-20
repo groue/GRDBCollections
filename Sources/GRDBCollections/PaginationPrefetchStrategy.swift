@@ -1,8 +1,8 @@
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public protocol PaginationPrefetchStrategy {
-    func needsInitialPrefetch() -> Bool
-    func needsPrefetchAfterPageLoaded(elementCount: Int) -> Bool
-    func needsPrefetchOnElementAppear(atIndex index: Int, elementCount: Int) -> Bool
+    func _needsInitialPrefetch() -> Bool
+    func _needsPrefetchAfterPageLoaded(elementCount: Int) -> Bool
+    func _needsPrefetchOnElementAppear(atIndex index: Int, elementCount: Int) -> Bool
 }
 
 // MARK: - TopPaginationPrefetchStrategy
@@ -15,15 +15,15 @@ public struct TopPaginationPrefetchStrategy: PaginationPrefetchStrategy {
         self.count = count
     }
     
-    public func needsInitialPrefetch() -> Bool {
+    public func _needsInitialPrefetch() -> Bool {
         count > 0
     }
     
-    public func needsPrefetchAfterPageLoaded(elementCount: Int) -> Bool {
+    public func _needsPrefetchAfterPageLoaded(elementCount: Int) -> Bool {
         elementCount < count
     }
     
-    public func needsPrefetchOnElementAppear(atIndex index: Int, elementCount: Int) -> Bool {
+    public func _needsPrefetchOnElementAppear(atIndex index: Int, elementCount: Int) -> Bool {
         false
     }
 }
@@ -46,15 +46,15 @@ public struct BottomPaginationPrefetchStrategy: PaginationPrefetchStrategy {
         self.count = count
     }
     
-    public func needsInitialPrefetch() -> Bool {
+    public func _needsInitialPrefetch() -> Bool {
         count > 0
     }
     
-    public func needsPrefetchAfterPageLoaded(elementCount: Int) -> Bool {
+    public func _needsPrefetchAfterPageLoaded(elementCount: Int) -> Bool {
         false
     }
     
-    public func needsPrefetchOnElementAppear(atIndex index: Int, elementCount: Int) -> Bool {
+    public func _needsPrefetchOnElementAppear(atIndex index: Int, elementCount: Int) -> Bool {
         (elementCount - index) <= count
     }
 }

@@ -104,8 +104,8 @@ extension PageLoader: PageLoaderProtocol {
         try await perform(action: .refresh)
     }
     
-    func fetchNextPageIfIdle() async /* throws */ {
+    func fetchNextPageIfIdle() async throws {
         if isLoading { return }
-        try? await fetchNextPage()
+        try await fetchNextPage()
     }
 }

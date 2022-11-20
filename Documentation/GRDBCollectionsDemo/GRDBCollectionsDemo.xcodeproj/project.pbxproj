@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		563AE68928D7479C00E5DD8B /* GRDBCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 563AE68828D7479C00E5DD8B /* GRDBCollections */; };
-		5675E72428D611DC003FF740 /* GRDBQuery in Frameworks */ = {isa = PBXBuildFile; productRef = 5675E72328D611DC003FF740 /* GRDBQuery */; };
 		56B1E49A28C4BB450053B9E3 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56B1E49928C4BB450053B9E3 /* AppDelegate.swift */; };
 		56B1E49C28C4BB450053B9E3 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56B1E49B28C4BB450053B9E3 /* SceneDelegate.swift */; };
 		56B1E4A128C4BB450053B9E3 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 56B1E49F28C4BB450053B9E3 /* Main.storyboard */; };
@@ -38,7 +37,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5675E72428D611DC003FF740 /* GRDBQuery in Frameworks */,
 				563AE68928D7479C00E5DD8B /* GRDBCollections in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -112,7 +110,6 @@
 			);
 			name = GRDBCollectionsDemo;
 			packageProductDependencies = (
-				5675E72328D611DC003FF740 /* GRDBQuery */,
 				563AE68828D7479C00E5DD8B /* GRDBCollections */,
 			);
 			productName = GRDBCollectionsDemo;
@@ -144,7 +141,6 @@
 			);
 			mainGroup = 56B1E48D28C4BB450053B9E3;
 			packageReferences = (
-				5675E72228D611DC003FF740 /* XCRemoteSwiftPackageReference "GRDBQuery" */,
 			);
 			productRefGroup = 56B1E49728C4BB450053B9E3 /* Products */;
 			projectDirPath = "";
@@ -396,26 +392,10 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		5675E72228D611DC003FF740 /* XCRemoteSwiftPackageReference "GRDBQuery" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/groue/GRDBQuery";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.5.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
 /* Begin XCSwiftPackageProductDependency section */
 		563AE68828D7479C00E5DD8B /* GRDBCollections */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = GRDBCollections;
-		};
-		5675E72328D611DC003FF740 /* GRDBQuery */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 5675E72228D611DC003FF740 /* XCRemoteSwiftPackageReference "GRDBQuery" */;
-			productName = GRDBQuery;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
