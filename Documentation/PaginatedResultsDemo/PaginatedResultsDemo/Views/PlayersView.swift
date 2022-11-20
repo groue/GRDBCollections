@@ -30,7 +30,7 @@ struct PlayerRequest: Queryable {
                 
                 try db.registerAccess(to: request)
                 let snapshot = try DatabaseSnapshotPool(db)
-                return try request.paginated(in: snapshot, pageSize: 50)
+                return try request.paginated(in: snapshot, pageSize: 20)
             }
             .eraseToAnyPublisher()
     }
@@ -43,12 +43,10 @@ struct PlayersView: View {
         NavigationStack {
             PlayerList(players: PaginatedResults(
                 dataSource: players,
-                prefetchStrategy: .infiniteScroll(minimumElementsAtBottom: 100)))
+                prefetchStrategy: .infiniteScroll(minimumElementsAtBottom: 50)))
             .navigationTitle("Players")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    ToggleOrderingButton(ordering: $players.ordering)
-                }
+                ToggleOrderingButton(ordering: $players.ordering)
             }
         }
     }

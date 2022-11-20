@@ -68,7 +68,7 @@ struct PaginationDemoList: View {
             case .slowOverlap:
                 return PaginatedResults(
                     dataSource: DemoDataSource(
-                        pageCount: 5,
+                        pageCount: 6,
                         pageSize: 10,
                         overlap: 2,
                         delay: .seconds(1)),
@@ -77,7 +77,7 @@ struct PaginationDemoList: View {
             case .slowAndFlaky:
                 return PaginatedResults(
                     dataSource: DemoDataSource(
-                        pageCount: 5,
+                        pageCount: 6,
                         pageSize: 5,
                         overlap: 0,
                         delay: .seconds(1),
@@ -108,15 +108,16 @@ struct PaginationDemoList: View {
 struct PaginationDemoView: View {
     @StateObject var results: PaginatedResults<Item, Item.ID>
     @State var presentsError: Bool = false
+    @State var isRefreshing = false
     
     var body: some View {
-        ScrollViewReader { scrollView in
-            List {
+        List {
+            Section {
                 ForEach(results.elements) { paginatedItem in
                     ItemRow(item: paginatedItem.element)
                         .fetchNextPageIfNeeded(from: paginatedItem)
                 }
-                
+            } footer: {
                 switch results.state {
                 case .loadingNextPage:
                     loadingView
@@ -126,50 +127,53 @@ struct PaginationDemoView: View {
                     loadNextPageButton
                 }
             }
-            .listStyle(.plain)
-            
-            .refreshable {
-                do {
-                    try await results.refresh()
-                } catch {
-                    presentsError = true
-                }
+        }
+        .listStyle(.grouped)
+        
+        .refreshable {
+            do {
+                isRefreshing = true
+                try await results.refresh()
+            } catch {
+                presentsError = true
+            }
+            isRefreshing = false
+        }
+        
+        .alert("An Error Occurred", isPresented: $presentsError, presenting: results.error) { error in
+            Button(role: .cancel) { } label: { Text("Cancel") }
+            retryButton(from: error)
+        } message: { error in
+            Text(error.localizedDescription)
+        }
+        
+        .toolbar {
+            if isRefreshing || results.state == .loadingNextPage {
+                ProgressView().progressViewStyle(.circular)
             }
             
-            .alert("An Error Occurred", isPresented: $presentsError, presenting: results.error) { error in
-                Button(role: .cancel) { } label: { Text("Cancel") }
-                retryButton(from: error)
-            } message: { Text($0.localizedDescription) }
-            
-            .toolbar {
-                if results.state == .loadingNextPage {
-                    ProgressView().progressViewStyle(.circular)
-                }
-                
-                Button {
-                    Task {
-                        do {
-                            try await results.removeAllAndRefresh()
-                            if let id = results.elements.first?.id {
-                                scrollView.scrollTo(id)
-                            }
-                        } catch {
-                            presentsError = true
-                        }
+            Button {
+                Task {
+                    do {
+                        try await results.removeAllAndRefresh()
+                    } catch {
+                        presentsError = true
                     }
-                } label: { Text("Refresh") }
-            }
+                }
+            } label: { Text("Refresh") }
         }
     }
     
     var completedView: some View {
         Text("End of List")
+            .font(.callout)
             .frame(maxWidth: .infinity, alignment: .center)
             .foregroundStyle(.secondary)
     }
     
     var loadingView: some View {
         Text("Loading…")
+            .font(.callout)
             .frame(maxWidth: .infinity, alignment: .center)
             .foregroundStyle(.secondary)
     }
@@ -190,30 +194,22 @@ struct PaginationDemoView: View {
                         .multilineTextAlignment(.leading)
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                        .foregroundColor(.primary)
                         .padding(.bottom, 4)
                 }
                 Text("Load Next Page")
-                    .frame(maxWidth: .infinity, alignment: .center)
             }
+            .frame(maxWidth: .infinity, alignment: .center)
         }
     }
     
     func retryButton(from error: PaginationError) -> some View {
         Button {
             Task {
-                switch error {
-                case .refresh:
-                    do {
-                        try await results.refresh()
-                    } catch {
-                        presentsError = true
-                    }
-                case .nextPage:
-                    do {
-                        try await results.fetchNextPage()
-                    } catch {
-                        presentsError = true
-                    }
+                do {
+                    try await results.retry(from: error)
+                } catch {
+                    presentsError = true
                 }
             }
         } label: { Text("Retry") }

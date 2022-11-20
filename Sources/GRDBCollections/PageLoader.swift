@@ -9,8 +9,10 @@ actor PageLoader<DataSource: PaginationDataSource> {
     typealias Element = DataSource.Element
     typealias PageID = DataSource.PageID
     
+    private typealias LoadingTask = Task<Page<Element, AnyHashable>?, Error>
+    
     private enum PageState {
-        case loading(Task<Void, Error>)
+        case loading(LoadingTask)
         case loaded
         
         func cancel() {
@@ -25,9 +27,8 @@ actor PageLoader<DataSource: PaginationDataSource> {
     
     let dataSource: DataSource
     
-    private let willPerform: (_ action: PaginationAction) async -> Void
-    private let didPerform: (_ action: PaginationAction, _ newElements: [Element], _ nextPage: AnyHashable?) async -> Void
-    
+    private let willFetchNextPage: () async -> Void
+
     private var nextPageIdentifier: PageID?
     private var pageStates: [PageID: PageState] = [:]
     
@@ -40,50 +41,34 @@ actor PageLoader<DataSource: PaginationDataSource> {
     
     init(
         dataSource: DataSource,
-        willPerform: @escaping (_ action: PaginationAction) async -> Void,
-        didPerform: @escaping (_ action: PaginationAction, _ newElements: [Element], _ nextPage: AnyHashable?) async -> Void)
+        willFetchNextPage: @escaping () async -> Void)
     {
         self.dataSource = dataSource
-        self.willPerform = willPerform
-        self.didPerform = didPerform
+        self.willFetchNextPage = willFetchNextPage
     }
-    
-    private func perform(action: PaginationAction) async throws {
-        if action == .refresh {
-            for pageState in pageStates.values {
-                pageState.cancel()
-            }
-            pageStates = [:]
-        }
-        
-        let pageIdentifier: PageID
-        switch action {
-        case .refresh:
-            pageIdentifier = dataSource.firstPageIdentifier
-        case .fetchNextPage:
-            // If last page was loaded, `nextPageIdentifier` is nil.
-            // But we won't try to fetch the first page again.
-            // The check for `pageStates[pageIdentifier]` below will notice
-            // that the first page was already loaded, so that we
-            // exit early.
-            pageIdentifier = nextPageIdentifier ?? dataSource.firstPageIdentifier
-        }
+}
+
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
+extension PageLoader: PageLoaderProtocol {
+    func fetchNextPage() async throws -> Page<Element, AnyHashable>? {
+        let pageIdentifier = nextPageIdentifier ?? dataSource.firstPageIdentifier
         
         if pageStates[pageIdentifier] != nil {
             // Already loaded or loading
-            return
+            return nil
         }
         
-        let task = Task {
+        let task: LoadingTask = Task {
             do {
                 try Task.checkCancellation()
-                await willPerform(action)
+                await willFetchNextPage()
                 let page = try await dataSource.page(at: pageIdentifier)
                 try Task.checkCancellation()
                 pageStates[pageIdentifier] = .loaded
                 nextPageIdentifier = page.nextPageIdentifier
-                await didPerform(action, page.elements, page.nextPageIdentifier)
+                return Page(elements: page.elements, nextPageIdentifier: page.nextPageIdentifier)
             } catch is CancellationError {
+                return nil
             } catch {
                 pageStates.removeValue(forKey: pageIdentifier)
                 throw error
@@ -92,20 +77,36 @@ actor PageLoader<DataSource: PaginationDataSource> {
         pageStates[pageIdentifier] = .loading(task)
         return try await task.value
     }
-}
-
-@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
-extension PageLoader: PageLoaderProtocol {
-    func fetchNextPage() async throws {
-        try await perform(action: .fetchNextPage)
+    
+    func refresh() async throws -> Page<Element, AnyHashable>? {
+        for pageState in pageStates.values {
+            pageState.cancel()
+        }
+        pageStates = [:]
+        
+        let pageIdentifier = dataSource.firstPageIdentifier
+        
+        let task: LoadingTask = Task {
+            do {
+                try Task.checkCancellation()
+                let page = try await dataSource.page(at: pageIdentifier)
+                try Task.checkCancellation()
+                pageStates[pageIdentifier] = .loaded
+                nextPageIdentifier = page.nextPageIdentifier
+                return Page(elements: page.elements, nextPageIdentifier: page.nextPageIdentifier)
+            } catch is CancellationError {
+                return nil
+            } catch {
+                pageStates.removeValue(forKey: pageIdentifier)
+                throw error
+            }
+        }
+        pageStates[pageIdentifier] = .loading(task)
+        return try await task.value
     }
     
-    func refresh() async throws {
-        try await perform(action: .refresh)
-    }
-    
-    func fetchNextPageIfIdle() async throws {
-        if isLoading { return }
-        try await fetchNextPage()
+    func fetchNextPageIfIdle() async throws -> Page<Element, AnyHashable>? {
+        if isLoading { return nil }
+        return try await fetchNextPage()
     }
 }

@@ -13,7 +13,7 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
     
     let idKeyPath: KeyPath<Element, ID>
     let prefetchStrategy: any PaginationPrefetchStrategy
-    var loader: (any PageLoaderProtocol)!
+    var loader: (any PageLoaderProtocol<Element>)!
     
     public init(
         initialElements: [Element] = [],
@@ -28,11 +28,8 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
         
         self.loader = PageLoader(
             dataSource: dataSource,
-            willPerform: { [weak self] action in
-                self?.willPerform(action)
-            },
-            didPerform: { [weak self] action, newElements, nextPage in
-                self?.didPerform(action, newElements: newElements, nextPage: nextPage)
+            willFetchNextPage: { @MainActor [weak self] in
+                self?.willFetchNextPage()
             })
         
         self._elements = PaginatedCollection(id: id, makePrefetch: { [prefetchStrategy] index, elementCount in
@@ -73,10 +70,16 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
     public func fetchNextPage() async throws {
         let previousState = state
         do {
-            try await loader.fetchNextPage()
+            if let page = try await loader.fetchNextPage() {
+                pageDidLoad(page)
+            }
         } catch {
-            self.error = .nextPage(error)
-            self.state = previousState
+            self.error = .fetchNextPage(error)
+            if previousState == .loadingNextPage {
+                self.state = .notCompleted
+            } else {
+                self.state = previousState
+            }
             throw error
         }
     }
@@ -84,10 +87,19 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
     public func refresh() async throws {
         let previousState = state
         do {
-            try await loader.refresh()
+            if let page = try await loader.refresh() {
+                _elements.removeAll()
+                pageDidLoad(page)
+            }
+
         } catch {
+            #warning("TODO: this is not a fetch next page error")
             self.error = .refresh(error)
-            self.state = previousState
+            if previousState == .loadingNextPage {
+                self.state = .notCompleted
+            } else {
+                self.state = previousState
+            }
             throw error
         }
     }
@@ -96,7 +108,26 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
         _elements.removeAll()
         error = nil
         state = .loadingNextPage
-        try await loader.refresh()
+        do {
+            if let page = try await loader.refresh() {
+                pageDidLoad(page)
+            }
+        } catch {
+            self.error = .removeAllAndRefresh(error)
+            self.state = .notCompleted
+            throw error
+        }
+    }
+    
+    public func retry(from error: PaginationError) async throws {
+        switch error {
+        case .fetchNextPage:
+            try await fetchNextPage()
+        case .refresh:
+            try await refresh()
+        case .removeAllAndRefresh:
+            try await removeAllAndRefresh()
+        }
     }
     
     private func fetchNextPageIfIdle() async {
@@ -108,32 +139,29 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
         
         let previousState = state
         do {
-            try await loader.fetchNextPageIfIdle()
+            if let page = try await loader.fetchNextPageIfIdle() {
+                pageDidLoad(page)
+            }
         } catch {
-            self.error = .nextPage(error)
-            self.state = previousState
+            self.error = .fetchNextPage(error)
+            if previousState == .loadingNextPage {
+                self.state = .notCompleted
+            } else {
+                self.state = previousState
+            }
         }
     }
     
-    private func willPerform(_ action: PaginationAction) {
+    private func willFetchNextPage() {
         error = nil
-        
-        switch action {
-        case .refresh:
-            break
-        case .fetchNextPage:
-            state = .loadingNextPage
-        }
+        state = .loadingNextPage
     }
     
-    private func didPerform(_ action: PaginationAction, newElements: [Element], nextPage: AnyHashable?) {
-        if action == .refresh {
-            _elements.removeAll()
-        }
+    private func pageDidLoad(_ page: Page<Element, AnyHashable>) {
+        error = nil
+        _elements.append(page: page.elements, with: mergeStrategy)
         
-        _elements.append(page: newElements, with: mergeStrategy)
-        
-        if nextPage != nil {
+        if page.nextPageIdentifier != nil {
             state = .notCompleted
             if prefetchStrategy._needsPrefetchAfterPageLoaded(elementCount: elements.count) {
                 Task {
@@ -147,10 +175,11 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
 }
 
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
-protocol PageLoaderProtocol {
-    func fetchNextPage() async throws
-    func refresh() async throws
-    func fetchNextPageIfIdle() async throws
+protocol PageLoaderProtocol<Element> {
+    associatedtype Element
+    func fetchNextPage() async throws -> Page<Element, AnyHashable>?
+    func refresh() async throws -> Page<Element, AnyHashable>?
+    func fetchNextPageIfIdle() async throws -> Page<Element, AnyHashable>?
 }
 
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
@@ -167,12 +196,13 @@ public enum PaginationState {
 
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public enum PaginationError: Error {
+    case fetchNextPage(Error)
     case refresh(Error)
-    case nextPage(Error)
+    case removeAllAndRefresh(Error)
     
     public var underlyingError: Error {
         switch self {
-        case let .refresh(error), let .nextPage(error):
+        case let .fetchNextPage(error), let .refresh(error), let .removeAllAndRefresh(error):
             return error
         }
     }
