@@ -38,12 +38,8 @@ public struct PaginatedRequest<Element> {
     throws
     {
         precondition(pageSize > 0, "pageSize must be greater than zero")
-        
         self.snapshot = snapshot
-        
-        // Count elements.
         self.count = try snapshot.read(request.fetchCount)
-        
         self.request = request
         self.fetchElements = fetchElements
         self.pageSize = pageSize

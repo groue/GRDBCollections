@@ -67,6 +67,8 @@ extension Player: Codable, FetchableRecord, MutablePersistableRecord {
     /// Arrange the selected columns and lock their order
     static let databaseSelection: [any SQLSelectable] = [Columns.id, Columns.name, Columns.score]
     
+    static let maxScore = Player.select(max(Columns.score), as: Int.self)
+    
     init(row: Row) throws {
         // For high performance, use numeric indexes that match the
         // order of Player.databaseSelection

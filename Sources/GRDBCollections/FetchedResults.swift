@@ -68,21 +68,14 @@ public final class FetchedResults<Element>: NSObject {
     ///     - configuration: The configuration.
     ///     - fetchElements: The function that fetches elements.
     fileprivate nonisolated init(
-        _ db: Database,
+        snapshot: some DatabaseSnapshotReader,
         request: Request,
         configuration: FetchedResultsConfiguration,
         fetchElements: @escaping FetchElements)
     throws
     {
-        // Report the full request to ValueObservation (including prefetched associations)
-        try db.registerAccess(to: request)
-
-        // Take snapshot
-        self.snapshot = try DatabaseSnapshotPool(db)
-        
-        // Count elements.
+        self.snapshot = snapshot
         self.count = try snapshot.read(request.fetchCount)
-        
         self.request = request
         self.fetchElements = fetchElements
         self.pageCache.countLimit = configuration.cachedPageCountLimit
@@ -314,6 +307,9 @@ public struct FetchedResultsConfiguration {
         pageSize: Int,
         adjacentPageCount: Int)
     {
+        precondition(pageSize > 0, "pageSize must be greater than zero")
+        precondition(adjacentPageCount > 0, "adjacentPageCount must be greater than zero")
+        
         self.cachedPageCountLimit = cachedPageCountLimit
         self.pageSize = pageSize
         self.adjacentPageCount = adjacentPageCount
@@ -324,12 +320,12 @@ public struct FetchedResultsConfiguration {
 
 extension QueryInterfaceRequest where RowDecoder: DatabaseValueConvertible {
     public func fetchResults(
-        _ db: Database,
+        in snapshot: some DatabaseSnapshotReader,
         configuration: FetchedResultsConfiguration = .default)
     throws -> FetchedResults<RowDecoder>
     {
         try FetchedResults(
-            db,
+            snapshot: snapshot,
             request: self,
             configuration: configuration,
             fetchElements: { db, request, minimumCapacity in
@@ -342,12 +338,12 @@ extension QueryInterfaceRequest where RowDecoder: DatabaseValueConvertible {
 
 extension QueryInterfaceRequest where RowDecoder: DatabaseValueConvertible & StatementColumnConvertible {
     public func fetchResults(
-        _ db: Database,
+        in snapshot: some DatabaseSnapshotReader,
         configuration: FetchedResultsConfiguration = .default)
     throws -> FetchedResults<RowDecoder>
     {
         try FetchedResults(
-            db,
+            snapshot: snapshot,
             request: self,
             configuration: configuration,
             fetchElements: { db, request, minimumCapacity in
@@ -360,12 +356,12 @@ extension QueryInterfaceRequest where RowDecoder: DatabaseValueConvertible & Sta
 
 extension QueryInterfaceRequest where RowDecoder: FetchableRecord {
     public func fetchResults(
-        _ db: Database,
+        in snapshot: some DatabaseSnapshotReader,
         configuration: FetchedResultsConfiguration = .default)
     throws -> FetchedResults<RowDecoder>
     {
         try FetchedResults(
-            db,
+            snapshot: snapshot,
             request: self,
             configuration: configuration,
             fetchElements: { db, request, minimumCapacity in
@@ -378,12 +374,12 @@ extension QueryInterfaceRequest where RowDecoder: FetchableRecord {
 
 extension QueryInterfaceRequest where RowDecoder == Row {
     public func fetchResults(
-        _ db: Database,
+        in snapshot: some DatabaseSnapshotReader,
         configuration: FetchedResultsConfiguration = .default)
     throws -> FetchedResults<RowDecoder>
     {
         try FetchedResults(
-            db,
+            snapshot: snapshot,
             request: self,
             configuration: configuration,
             fetchElements: { db, request, minimumCapacity in

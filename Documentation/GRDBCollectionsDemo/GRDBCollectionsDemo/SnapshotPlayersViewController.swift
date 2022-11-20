@@ -11,7 +11,10 @@ class SnapshotPlayersViewController: UITableViewController {
         
         cancellable = ValueObservation
             .trackingConstantRegion { db in
-                try Player.all().orderedByScore().fetchResults(db)
+                let request = Player.all().orderedByScore()
+                try db.registerAccess(to: request)
+                let snapshot = try DatabaseSnapshotPool(db)
+                return try request.fetchResults(in: snapshot)
             }
             .start(
                 in: DatabasePool.shared,
@@ -26,7 +29,8 @@ class SnapshotPlayersViewController: UITableViewController {
         
         Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
             try! DatabasePool.shared.write { db in
-                _ = try Player(name: Player.randomName(), score: Player.randomScore()).inserted(db)
+                let maxScore = try Player.maxScore.fetchOne(db) ?? 0
+                _ = try Player(name: Player.randomName(), score: maxScore + 1).inserted(db)
             }
         }
     }
@@ -44,6 +48,7 @@ class SnapshotPlayersViewController: UITableViewController {
         config.text = player.name
         config.secondaryText = "\(player.score)"
         cell.contentConfiguration = config
+        cell.selectionStyle = .none
         return cell
     }
 }
