@@ -108,7 +108,6 @@ struct PaginationDemoList: View {
 struct PaginationDemoView: View {
     @StateObject var results: PaginatedResults<Item, Item.ID>
     @State var presentsError: Bool = false
-    @State var isRefreshing = false
     
     var body: some View {
         List {
@@ -132,12 +131,10 @@ struct PaginationDemoView: View {
         
         .refreshable {
             do {
-                isRefreshing = true
                 try await results.refresh()
             } catch {
                 presentsError = true
             }
-            isRefreshing = false
         }
         
         .alert("An Error Occurred", isPresented: $presentsError, presenting: results.error) { error in
@@ -148,7 +145,7 @@ struct PaginationDemoView: View {
         }
         
         .toolbar {
-            if isRefreshing || results.state == .loadingNextPage {
+            if results.isLoadingPage {
                 ProgressView().progressViewStyle(.circular)
             }
             

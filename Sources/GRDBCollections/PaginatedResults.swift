@@ -7,13 +7,15 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
     @Published private var _elements: PaginatedCollection<Element, ID>!
     @Published public private(set) var state = PaginationState.notCompleted
     @Published public private(set) var error: PaginationError?
+    @Published private var loadingTask: Task<Page<Element, AnyHashable>, any Error>?
     
     public var elements: PaginatedCollection<Element, ID> { _elements }
+    public var isLoadingPage: Bool { loadingTask != nil }
     public let mergeStrategy: PaginationMergeStrategy<Element, ID>
     
-    let idKeyPath: KeyPath<Element, ID>
-    let prefetchStrategy: any PaginationPrefetchStrategy
-    var loader: (any PageLoaderProtocol<Element>)!
+    private let idKeyPath: KeyPath<Element, ID>
+    private let prefetchStrategy: any PaginationPrefetchStrategy
+    private var loader: any PageLoaderProtocol<Element>
     
     public init(
         initialElements: [Element] = [],
@@ -25,12 +27,7 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
         self.idKeyPath = id
         self.prefetchStrategy = prefetchStrategy
         self.mergeStrategy = mergeStrategy
-        
-        self.loader = PageLoader(
-            dataSource: dataSource,
-            willFetchNextPage: { @MainActor [weak self] in
-                self?.willFetchNextPage()
-            })
+        self.loader = PageLoader(dataSource: dataSource)
         
         self._elements = PaginatedCollection(id: id, makePrefetch: { [prefetchStrategy] index, elementCount in
             guard prefetchStrategy._needsPrefetchOnElementAppear(atIndex: index, elementCount: elementCount) else {
@@ -68,54 +65,88 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
     }
     
     public func fetchNextPage() async throws {
+        loadingTask?.cancel()
+        
         let previousState = state
+        let task = Task {
+            try await loader.fetchNextPage()
+        }
+        loadingTask = task
+        state = .loadingNextPage
+        
         do {
-            if let page = try await loader.fetchNextPage() {
+            let page = try await task.value
+            if loadingTask == task {
+                error = nil
+                loadingTask = nil
                 pageDidLoad(page)
             }
+        } catch is CancellationError {
         } catch {
-            self.error = .fetchNextPage(error)
-            if previousState == .loadingNextPage {
-                self.state = .notCompleted
-            } else {
-                self.state = previousState
+            if loadingTask == task {
+                loadingTask = nil
+                state = previousState
+                self.error = .fetchNextPage(error)
+                throw error
             }
-            throw error
         }
     }
     
     public func refresh() async throws {
+        loadingTask?.cancel()
+        
         let previousState = state
+        let task = Task {
+            try await loader.refresh()
+        }
+        loadingTask = task
+        
         do {
-            if let page = try await loader.refresh() {
+            let page = try await task.value
+            if loadingTask == task {
+                loadingTask = nil
+                error = nil
                 _elements.removeAll()
                 pageDidLoad(page)
             }
-
+        } catch is CancellationError {
         } catch {
-            #warning("TODO: this is not a fetch next page error")
-            self.error = .refresh(error)
-            if previousState == .loadingNextPage {
-                self.state = .notCompleted
-            } else {
-                self.state = previousState
+            if loadingTask == task {
+                loadingTask = nil
+                state = previousState
+                self.error = .refresh(error)
+                throw error
             }
-            throw error
         }
     }
     
     public func removeAllAndRefresh() async throws {
+        loadingTask?.cancel()
+        
+        let task = Task {
+            try await loader.refresh()
+        }
+        loadingTask = task
         _elements.removeAll()
         error = nil
         state = .loadingNextPage
+        
         do {
-            if let page = try await loader.refresh() {
+            let page = try await task.value
+            if loadingTask == task {
+                loadingTask = nil
+                error = nil
+                _elements.removeAll()
                 pageDidLoad(page)
             }
+        } catch is CancellationError {
         } catch {
-            self.error = .removeAllAndRefresh(error)
-            self.state = .notCompleted
-            throw error
+            if loadingTask == task {
+                loadingTask = nil
+                state = .notCompleted
+                self.error = .refresh(error)
+                throw error
+            }
         }
     }
     
@@ -125,8 +156,6 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
             try await fetchNextPage()
         case .refresh:
             try await refresh()
-        case .removeAllAndRefresh:
-            try await removeAllAndRefresh()
         }
     }
     
@@ -137,24 +166,10 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
         // Don't prefetch if there's an error (avoid endless loop of errors).
         guard error == nil else { return }
         
-        let previousState = state
-        do {
-            if let page = try await loader.fetchNextPageIfIdle() {
-                pageDidLoad(page)
-            }
-        } catch {
-            self.error = .fetchNextPage(error)
-            if previousState == .loadingNextPage {
-                self.state = .notCompleted
-            } else {
-                self.state = previousState
-            }
-        }
-    }
-    
-    private func willFetchNextPage() {
-        error = nil
-        state = .loadingNextPage
+        // Idle?
+        guard loadingTask == nil else { return }
+        
+        try? await fetchNextPage()
     }
     
     private func pageDidLoad(_ page: Page<Element, AnyHashable>) {
@@ -177,9 +192,8 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 protocol PageLoaderProtocol<Element> {
     associatedtype Element
-    func fetchNextPage() async throws -> Page<Element, AnyHashable>?
-    func refresh() async throws -> Page<Element, AnyHashable>?
-    func fetchNextPageIfIdle() async throws -> Page<Element, AnyHashable>?
+    func refresh() async throws -> Page<Element, AnyHashable>
+    func fetchNextPage() async throws -> Page<Element, AnyHashable>
 }
 
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
@@ -198,11 +212,10 @@ public enum PaginationState {
 public enum PaginationError: Error {
     case fetchNextPage(Error)
     case refresh(Error)
-    case removeAllAndRefresh(Error)
     
     public var underlyingError: Error {
         switch self {
-        case let .fetchNextPage(error), let .refresh(error), let .removeAllAndRefresh(error):
+        case let .fetchNextPage(error), let .refresh(error):
             return error
         }
     }
