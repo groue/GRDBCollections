@@ -1,32 +1,51 @@
 import GRDB
 
+#warning("TODO: how to synchronously display an initial page?")
+/// A database request that fetches pages of elements, one page after the other.
+///
+/// You create a `PaginatedRequest` with the
+/// `GRDB.QueryInterfaceRequest.paginated(in:pageSize:)` method,
+/// that accepts a `GRDB.DatabaseSnapshotReader` argument:
+///
+/// ```swift
+/// let snapshot: some DatabaseSnapshotReader
+/// let request = Player.order(Column("score"))
+/// let paginatedRequest = try request.paginated(in: snapshot, pageSize: 50)
+/// ```
+///
+/// `PaginatedRequest` conforms to ``PageSource`` so that it can feed
+/// a ``PaginatedResults`` and a SwiftUI `List`.
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public struct PaginatedRequest<Element> {
     fileprivate typealias Request = QueryInterfaceRequest<Element>
     fileprivate typealias FetchElements = (_ db: Database, _ request: Request, _ minimumCapacity: Int) throws -> [Element]
     
-    /// The total number of elements.
-    public let count: Int
+    /// The snapshot that provides database access.
+    private let snapshot: (any DatabaseSnapshotReader)?
     
     /// The fetched request.
     private let request: Request?
     
-    /// The snapshot that provides database access.
-    private let snapshot: (any DatabaseSnapshotReader)?
+    /// The total number of elements.
+    public let count: Int
     
-    /// The fetch function (depends on the type of elements).
-    private let fetchElements: FetchElements
+    public let firstPageIdentifier: Int?
     
     /// The maximum number of elements in a page.
     private let pageSize: Int
     
+    /// The fetch function (depends on the type of elements).
+    private let fetchElements: FetchElements
+    
+    /// The empty request.
     public static var empty: Self { PaginatedRequest() }
     
     private init() {
-        self.count = 0
-        self.pageSize = 1
-        self.request = nil
         self.snapshot = nil
+        self.request = nil
+        self.count = 0
+        self.firstPageIdentifier = nil
+        self.pageSize = 1
         self.fetchElements = { _, _, _ in [] }
     }
     
@@ -38,28 +57,28 @@ public struct PaginatedRequest<Element> {
     throws
     {
         precondition(pageSize > 0, "pageSize must be greater than zero")
+        
         self.snapshot = snapshot
-        self.count = try snapshot.read(request.fetchCount)
         self.request = request
-        self.fetchElements = fetchElements
+        self.count = try snapshot.read(request.fetchCount)
+        self.firstPageIdentifier = 0
         self.pageSize = pageSize
+        self.fetchElements = fetchElements
     }
 }
 
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
-extension PaginatedRequest: PaginationDataSource {
-    public var firstPageIdentifier: Int { 0 }
-    
-    public func page(at pageIdentifier: Int) async throws -> Page<Element, Int> {
+extension PaginatedRequest: PageSource {
+    public func page(at pageIdentifier: Int) async throws -> (elements: [Element], nextPageIdentifier: Int?) {
         guard let snapshot, let request else {
-            return Page(elements: [], nextPageIdentifier: nil)
+            return (elements: [], nextPageIdentifier: nil)
         }
         
         return try await snapshot.read { db in
             let pageRequest = request.limit(pageSize, offset: pageIdentifier)
             let elements = try fetchElements(db, pageRequest, /* minimumCapacity: */ pageSize)
             let nextOffset = pageIdentifier + pageSize
-            return Page(
+            return (
                 elements: elements,
                 nextPageIdentifier: nextOffset < count ? nextOffset : nil)
         }

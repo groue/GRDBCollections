@@ -1,3 +1,18 @@
+/// A type that controls how `PaginatedResults` prefetches pages.
+///
+/// ## Topics
+///
+/// ### Built-in Strategies
+///
+/// - ``firstPage``
+/// - ``infiniteScroll(offscreenElementCount:)``
+/// - ``minimumElementCount(_:)``
+/// - ``noPrefetch``
+///
+/// ### Supporting Types
+///
+/// - ``BottomPaginationPrefetchStrategy``
+/// - ``TopPaginationPrefetchStrategy``
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public protocol PaginationPrefetchStrategy {
     func _needsInitialPrefetch() -> Bool
@@ -30,9 +45,11 @@ public struct TopPaginationPrefetchStrategy: PaginationPrefetchStrategy {
 
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 extension PaginationPrefetchStrategy where Self == TopPaginationPrefetchStrategy {
-    /// - parameter count: the minimum number of elements
-    public static func minimumElements(_ count: Int) -> Self { .init(count: count) }
+    /// The strategy that prefetches pages until at least `count` elements
+    /// are loaded.
+    public static func minimumElementCount(_ count: Int) -> Self { .init(count: count) }
     
+    /// The strategy that disables page prefetching.
     public static var noPrefetch: Self { .init(count: 0) }
 }
 
@@ -61,9 +78,10 @@ public struct BottomPaginationPrefetchStrategy: PaginationPrefetchStrategy {
 
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 extension PaginationPrefetchStrategy where Self == BottomPaginationPrefetchStrategy {
-    /// - parameter count: the number of elements below the last
-    ///   visible element.
-    public static func infiniteScroll(minimumElementsAtBottom count: Int) -> Self { .init(count: count) }
+    /// The strategy for infinite scrolling that always prefetches at least more
+    /// `count` elements (until the list is exhausted).
+    public static func infiniteScroll(offscreenElementCount count: Int) -> Self { .init(count: count) }
     
+    /// The strategy that only prefetches the first page.
     public static var firstPage: Self { .init(count: 0) }
 }

@@ -1,18 +1,31 @@
 import Collections
 
+/// The collection of elements in a `PaginatedResults`.
+///
+/// ## Topics
+///
+/// ### Accessing the Paginated Elements
+///
+/// - ``subscript(_:)-5hy1n``
+/// - ``PaginatedElement``
+///
+/// ### Accessing the Raw Elements
+///
+/// - ``dictionary``
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public struct PaginatedCollection<Element, ID: Hashable> {
-    private var dictionary: OrderedDictionary<ID, Element>
+    /// The ordered elements, keyed by id.
+    public private(set) var dictionary: OrderedDictionary<ID, Element>
     private var idKeyPath: KeyPath<Element, ID>
-    var makePrefetch: (_ index: Int, _ elementCount: Int) -> (() -> Void)?
+    private var prefetchStrategy: any PaginationPrefetchStrategy
     
     init(
         id: KeyPath<Element, ID>,
-        makePrefetch: @escaping (_ index: Int, _ elementCount: Int) -> (() -> Void)?)
+        prefetchStrategy: some PaginationPrefetchStrategy)
     {
         self.dictionary = [:]
         self.idKeyPath = id
-        self.makePrefetch = makePrefetch
+        self.prefetchStrategy = prefetchStrategy
     }
 }
 
@@ -24,10 +37,10 @@ extension PaginatedCollection {
     
     mutating func append(
         page newElements: [Element],
-        with strategy: PaginationMergeStrategy<Element, ID>)
+        with strategy: PaginationAppendStrategy<Element, ID>)
     {
         switch strategy {
-        case .deleteAndAppend:
+        case .removeAndAppend:
             for element in newElements {
                 dictionary.removeValue(forKey: element[keyPath: idKeyPath])
             }
@@ -54,22 +67,29 @@ extension PaginatedCollection: RandomAccessCollection {
     public var startIndex: Int { dictionary.values.startIndex }
     public var endIndex: Int { dictionary.values.endIndex }
     
+    /// Accesses the element at the specified position.
     public subscript(position: Int) -> PaginatedElement<Element, ID> {
-        PaginatedElement(
-            idKeyPath: idKeyPath,
-            element: dictionary.values[position],
-            prefetch: makePrefetch(position, dictionary.count))
+        let value = dictionary.values[position]
+        let needsPrefetch = prefetchStrategy._needsPrefetchOnElementAppear(
+            atIndex: position,
+            elementCount: dictionary.count)
+        return PaginatedElement(
+            id: value[keyPath: idKeyPath],
+            value: value,
+            needsPrefetchOnAppear: needsPrefetch)
     }
 }
 
+/// A paginated element.
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 public struct PaginatedElement<Element, ID: Hashable>: Identifiable {
-    let idKeyPath: KeyPath<Element, ID>
-    public let element: Element
-    let prefetch: (() -> Void)?
-}
-
-@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
-extension PaginatedElement: Identifiable {
-    public var id: ID { element[keyPath: idKeyPath] }
+    /// The identity of the value.
+    public let id: ID
+    
+    /// The value.
+    public let value: Element
+    
+    /// A boolean value indicating whether a new page should be prefetched when
+    /// this element appears on screen.
+    public var needsPrefetchOnAppear: Bool
 }

@@ -8,8 +8,8 @@ struct Item: Identifiable {
     var name: String
 }
 
-struct DemoDataSource: PaginationDataSource {
-    var firstPageIdentifier: Int { 0 }
+struct DemoPaginationSource: PageSource {
+    var firstPageIdentifier: Int? { 0 }
     
     /// The number of pages
     var pageCount: Int
@@ -26,14 +26,14 @@ struct DemoDataSource: PaginationDataSource {
     /// A closure that can prevent the page from being produced by throwing an error
     var check: (() throws -> Void)?
     
-    func page(at pageIdentifier: Int) async throws -> Page<Item, Int> {
+    func page(at pageIdentifier: Int) async throws -> (elements: [Item], nextPageIdentifier: Int?) {
         try await Task.sleep(for: delay)
         try check?()
         let elements = (0..<pageSize).map { index in
             let id = pageIdentifier * (pageSize - overlap) + index
             return Item(id: id, name: "Page \(pageIdentifier) / Item \(index)")
         }
-        return Page(
+        return (
             elements: elements,
             nextPageIdentifier: (pageIdentifier + 1) >= pageCount ? nil : pageIdentifier + 1)
     }
@@ -58,25 +58,25 @@ struct PaginationDemoList: View {
             switch self {
             case .fast:
                 return PaginatedResults(
-                    dataSource: DemoDataSource(
+                    DemoPaginationSource(
                         pageCount: 20,
                         pageSize: 50,
                         overlap: 0,
                         delay: .milliseconds(100)),
-                    prefetchStrategy: .infiniteScroll(minimumElementsAtBottom: 50))
+                    prefetchStrategy: .infiniteScroll(offscreenElementCount: 50))
                 
             case .slowOverlap:
                 return PaginatedResults(
-                    dataSource: DemoDataSource(
+                    DemoPaginationSource(
                         pageCount: 6,
                         pageSize: 10,
                         overlap: 2,
                         delay: .seconds(1)),
-                    prefetchStrategy: .infiniteScroll(minimumElementsAtBottom: 5))
+                    prefetchStrategy: .infiniteScroll(offscreenElementCount: 5))
                 
             case .slowAndFlaky:
                 return PaginatedResults(
-                    dataSource: DemoDataSource(
+                    DemoPaginationSource(
                         pageCount: 6,
                         pageSize: 5,
                         overlap: 0,
@@ -86,7 +86,7 @@ struct PaginationDemoList: View {
                                 throw URLError(.notConnectedToInternet)
                             }
                         }),
-                    prefetchStrategy: .infiniteScroll(minimumElementsAtBottom: 5))
+                    prefetchStrategy: .infiniteScroll(offscreenElementCount: 5))
             }
         }
     }
@@ -107,45 +107,48 @@ struct PaginationDemoList: View {
 
 struct PaginationDemoView: View {
     @StateObject var results: PaginatedResults<Item, Item.ID>
-    @State var presentsError: Bool = false
+    @State var presentsPaginationError: Bool = false
     
     var body: some View {
         List {
             Section {
-                ForEach(results.elements) { paginatedItem in
-                    ItemRow(item: paginatedItem.element)
-                        .fetchNextPageIfNeeded(from: paginatedItem)
+                ForEach(results.elements) { element in
+                    ItemRow(item: element.value)
+                        .onAppear(element, prefetchIfNeeded: results)
                 }
             } footer: {
-                switch results.state {
-                case .loadingNextPage:
+                switch results.paginationState {
+                case .fetchingNextPage:
                     loadingView
                 case .completed:
                     completedView
                 case .notCompleted:
-                    loadNextPageButton
+                    fetchNextPageButton
                 }
             }
         }
-        .listStyle(.grouped)
         
         .refreshable {
             do {
                 try await results.refresh()
             } catch {
-                presentsError = true
+                presentsPaginationError = true
             }
         }
         
-        .alert("An Error Occurred", isPresented: $presentsError, presenting: results.error) { error in
-            Button(role: .cancel) { } label: { Text("Cancel") }
+        .alert(
+            "An Error Occurred",
+            isPresented: $presentsPaginationError,
+            presenting: results.paginationError)
+        { error in
+            Button("Cancel") { }
             retryButton(from: error)
         } message: { error in
             Text(error.localizedDescription)
         }
         
         .toolbar {
-            if results.isLoadingPage {
+            if results.isFetchingPage {
                 ProgressView().progressViewStyle(.circular)
             }
             
@@ -154,7 +157,7 @@ struct PaginationDemoView: View {
                     do {
                         try await results.removeAllAndRefresh()
                     } catch {
-                        presentsError = true
+                        presentsPaginationError = true
                     }
                 }
             } label: { Text("Refresh") }
@@ -175,18 +178,18 @@ struct PaginationDemoView: View {
             .foregroundStyle(.secondary)
     }
     
-    var loadNextPageButton: some View {
+    var fetchNextPageButton: some View {
         Button {
             Task {
                 do {
                     try await results.fetchNextPage()
                 } catch {
-                    presentsError = true
+                    presentsPaginationError = true
                 }
             }
         } label: {
             VStack(alignment: .center) {
-                if let error = results.error {
+                if let error = results.paginationError {
                     Text(error.localizedDescription)
                         .multilineTextAlignment(.leading)
                         .font(.callout)
@@ -201,15 +204,15 @@ struct PaginationDemoView: View {
     }
     
     func retryButton(from error: PaginationError) -> some View {
-        Button {
+        Button("Retry") {
             Task {
                 do {
                     try await results.retry(from: error)
                 } catch {
-                    presentsError = true
+                    presentsPaginationError = true
                 }
             }
-        } label: { Text("Retry") }
+        }
     }
 }
 

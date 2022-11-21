@@ -4,7 +4,7 @@ import GRDBCollections
 import GRDBQuery
 import SwiftUI
 
-struct PlayerRequest: Queryable {
+struct PaginatedPlayersRequest: Queryable {
     enum Ordering {
         case byName
         case byScore
@@ -12,38 +12,37 @@ struct PlayerRequest: Queryable {
     
     static var defaultValue: PaginatedRequest<Player> { .empty }
     
+    var pageSize: Int
     var ordering: Ordering
     
     /// Returns a Combine publisher of database values.
     ///
     /// - parameter database: Provides access to the database.
     func publisher(in dbPool: DatabasePool) -> AnyPublisher<PaginatedRequest<Player>, Error> {
-        dbPool
-            .readPublisher { db in
-                let request: QueryInterfaceRequest<Player>
-                switch ordering {
-                case .byScore:
-                    request = Player.all().orderedByScore()
-                case .byName:
-                    request = Player.all().orderedByName()
-                }
-                
-                try db.registerAccess(to: request)
-                let snapshot = try DatabaseSnapshotPool(db)
-                return try request.paginated(in: snapshot, pageSize: 20)
+        dbPool.readPublisher { db in
+            let request: QueryInterfaceRequest<Player>
+            switch ordering {
+            case .byScore:
+                request = Player.all().orderedByScore()
+            case .byName:
+                request = Player.all().orderedByName()
             }
-            .eraseToAnyPublisher()
+            
+            let snapshot = try DatabaseSnapshotPool(db)
+            return try request.paginated(in: snapshot, pageSize: pageSize)
+        }
+        .eraseToAnyPublisher()
     }
 }
 
 struct PlayersView: View {
-    @Query(PlayerRequest(ordering: .byScore), in: \.dbPool) var players
+    @Query(PaginatedPlayersRequest(pageSize: 10, ordering: .byScore), in: \.dbPool) var players
     
     var body: some View {
         NavigationStack {
             PlayerList(players: PaginatedResults(
-                dataSource: players,
-                prefetchStrategy: .infiniteScroll(minimumElementsAtBottom: 50)))
+                players,
+                prefetchStrategy: .infiniteScroll(offscreenElementCount: 50)))
             .navigationTitle("Players")
             .toolbar {
                 ToggleOrderingButton(ordering: $players.ordering)
@@ -54,18 +53,18 @@ struct PlayersView: View {
 
 struct PlayerList: View {
     @ObservedObject var players: PaginatedResults<Player, Player.ID>
-    @State var presentsError: Bool = false
     
+    #warning("TODO: body is repeatedly called on mac")
     var body: some View {
-        List(players.elements) { paginatedPlayer in
-            PlayerRow(player: paginatedPlayer.element)
-                .fetchNextPageIfNeeded(from: paginatedPlayer)
+        List(players.elements) { element in
+            PlayerRow(player: element.value)
+                .onAppear(element, prefetchIfNeeded: players)
         }
     }
 }
 
 private struct ToggleOrderingButton: View {
-    @Binding var ordering: PlayerRequest.Ordering
+    @Binding var ordering: PaginatedPlayersRequest.Ordering
     
     var body: some View {
         switch ordering {
