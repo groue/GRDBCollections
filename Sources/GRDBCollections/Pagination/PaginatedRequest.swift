@@ -29,8 +29,6 @@ public struct PaginatedRequest<Element> {
     /// The total number of elements.
     public let count: Int
     
-    public let firstPageIdentifier: Int?
-    
     /// The maximum number of elements in a page.
     private let pageSize: Int
     
@@ -44,7 +42,6 @@ public struct PaginatedRequest<Element> {
         self.snapshot = nil
         self.request = nil
         self.count = 0
-        self.firstPageIdentifier = nil
         self.pageSize = 1
         self.fetchElements = { _, _, _ in [] }
     }
@@ -61,7 +58,6 @@ public struct PaginatedRequest<Element> {
         self.snapshot = snapshot
         self.request = request
         self.count = try snapshot.read(request.fetchCount)
-        self.firstPageIdentifier = 0
         self.pageSize = pageSize
         self.fetchElements = fetchElements
     }
@@ -69,6 +65,8 @@ public struct PaginatedRequest<Element> {
 
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 extension PaginatedRequest: PageSource {
+    public func firstPageIdentifier() -> Int? { 0 }
+    
     public func page(at pageIdentifier: Int) async throws -> (elements: [Element], nextPageIdentifier: Int?) {
         guard let snapshot, let request else {
             return (elements: [], nextPageIdentifier: nil)

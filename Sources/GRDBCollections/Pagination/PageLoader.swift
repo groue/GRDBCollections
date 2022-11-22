@@ -35,10 +35,13 @@ actor PageLoader<Source: PageSource> {
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 extension PageLoader: PageLoaderProtocol {
     func fetchNextPage() async throws -> Page<Element> {
-        try await fetchPage(at: nextPageIdentifier ?? pageSource.firstPageIdentifier)
+        if let pageId = nextPageIdentifier {
+            return try await fetchPage(at: pageId)
+        }
+        return try await fetchPage(at: pageSource.firstPageIdentifier())
     }
     
     func refresh() async throws -> Page<Element> {
-        try await fetchPage(at: pageSource.firstPageIdentifier)
+        try await fetchPage(at: pageSource.firstPageIdentifier())
     }
 }

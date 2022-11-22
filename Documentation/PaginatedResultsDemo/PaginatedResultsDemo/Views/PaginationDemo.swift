@@ -9,7 +9,7 @@ struct Item: Identifiable {
 }
 
 struct DemoPaginationSource: PageSource {
-    var firstPageIdentifier: Int? { 0 }
+    func firstPageIdentifier() -> Int? { 0 }
     
     /// The number of pages
     var pageCount: Int
