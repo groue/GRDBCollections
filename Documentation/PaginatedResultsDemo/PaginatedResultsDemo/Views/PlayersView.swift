@@ -40,9 +40,7 @@ struct PlayersView: View {
     
     var body: some View {
         NavigationStack {
-            PlayerList(players: PaginatedResults(
-                players,
-                prefetchStrategy: .infiniteScroll(offscreenElementCount: 50)))
+            PlayerList(players: PaginatedResults(players, prefetchDistance: 50))
             .navigationTitle("Players")
             .toolbar {
                 ToggleOrderingButton(ordering: $players.ordering)

@@ -17,15 +17,18 @@ public struct PaginatedCollection<Element, ID: Hashable> {
     /// The ordered elements, keyed by id.
     public private(set) var dictionary: OrderedDictionary<ID, Element>
     private var idKeyPath: KeyPath<Element, ID>
-    private var prefetchStrategy: any PaginationPrefetchStrategy
+    private var prefetchDistance: Int
+    private var appendStrategy: PaginationAppendStrategy<Element, ID>
     
     init(
         id: KeyPath<Element, ID>,
-        prefetchStrategy: some PaginationPrefetchStrategy)
+        prefetchDistance: Int,
+        appendStrategy: PaginationAppendStrategy<Element, ID>)
     {
         self.dictionary = [:]
         self.idKeyPath = id
-        self.prefetchStrategy = prefetchStrategy
+        self.prefetchDistance = prefetchDistance
+        self.appendStrategy = appendStrategy
     }
 }
 
@@ -35,11 +38,8 @@ extension PaginatedCollection {
         dictionary.removeAll()
     }
     
-    mutating func append(
-        page newElements: [Element],
-        with strategy: PaginationAppendStrategy<Element, ID>)
-    {
-        switch strategy {
+    mutating func append(page newElements: [Element]) {
+        switch appendStrategy {
         case .removeAndAppend:
             for element in newElements {
                 dictionary.removeValue(forKey: element[keyPath: idKeyPath])
@@ -70,9 +70,7 @@ extension PaginatedCollection: RandomAccessCollection {
     /// Accesses the element at the specified position.
     public subscript(position: Int) -> PaginatedElement<Element, ID> {
         let value = dictionary.values[position]
-        let needsPrefetch = prefetchStrategy._needsPrefetchOnElementAppear(
-            atIndex: position,
-            elementCount: dictionary.count)
+        let needsPrefetch = (count - position) <= prefetchDistance
         return PaginatedElement(
             id: value[keyPath: idKeyPath],
             value: value,

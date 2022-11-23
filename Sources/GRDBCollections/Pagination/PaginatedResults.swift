@@ -153,8 +153,8 @@ import os.log
 ///
 /// ### Creating a PaginatedResults
 ///
-/// - ``init(_:prefetchStrategy:appendStrategy:)``
-/// - ``init(_:id:prefetchStrategy:appendStrategy:)``
+/// - ``init(_:initialElementCount:prefetchDistance:appendStrategy:)``
+/// - ``init(_:id:initialElementCount:prefetchDistance:appendStrategy:)``
 ///
 /// ### Accessing the Paginated Elements
 ///
@@ -181,7 +181,6 @@ import os.log
 ///
 /// - ``PageSource``
 /// - ``PaginationAppendStrategy``
-/// - ``PaginationPrefetchStrategy``
 @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
 @MainActor
 public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
@@ -232,10 +231,12 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
     /// The collection of paginated elements.
     @Published public private(set) var elements: PaginatedCollection<Element, ID>!
     
+    /// The configuration.
+    public let configuration: PaginatedResultsConfiguration
+    
     @Published private var fetchingTask: Task<Page<Element>, any Error>?
     private let idKeyPath: KeyPath<Element, ID>
     private let appendStrategy: PaginationAppendStrategy<Element, ID>
-    private let prefetchStrategy: any PaginationPrefetchStrategy
     private var loader: any PageLoaderProtocol<Element>
     
     /// Creates an instance that paginates and identifies elements loaded from
@@ -244,24 +245,27 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
     /// - parameters:
     ///     - pageSource: The pagination source.
     ///     - id: The key path to elements’ identifier.
-    ///     - prefetchStrategy: A strategy for prefetching pages. By default,
-    ///       pages are fetched on demand, as the user scrolls to the last row.
+    ///     - initialElementCount: The minimal number of elements to
+    ///       fetch initially.
+    ///     - prefetchDistance: The distance to the bottom of the list that
+    ///       triggers page prefetch.
     ///     - appendStrategy: A strategy for appending new pages. By default,
     ///       eventual existing elements are updated with the new ones, and new
     ///       elements are appended.
     public init(
         _ pageSource: some PageSource<Element>,
         id: KeyPath<Element, ID>,
-        prefetchStrategy: some PaginationPrefetchStrategy = .infiniteScroll(offscreenElementCount: 1),
+        configuration: PaginatedResultsConfiguration,
         appendStrategy: PaginationAppendStrategy<Element, ID> = .updateOrAppend)
     {
         self.idKeyPath = id
-        self.prefetchStrategy = prefetchStrategy
+        self.initialElementCount = initialElementCount
+        self.prefetchDistance = prefetchDistance
         self.appendStrategy = appendStrategy
         self.loader = PageLoader(pageSource)
-        self.elements = PaginatedCollection(id: id, prefetchStrategy: prefetchStrategy)
+        self.elements = PaginatedCollection(id: id, prefetchDistance: prefetchDistance, appendStrategy: appendStrategy)
         
-        if prefetchStrategy._needsInitialPrefetch() {
+        if initialElementCount > 0  {
             Task {
                 await prefetch()
             }
@@ -273,21 +277,21 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
     ///
     /// - parameters:
     ///     - pageSource: The pagination source.
-    ///     - prefetchStrategy: A strategy for prefetching pages. By default,
-    ///       pages are fetched on demand, as the user scrolls to the last row.
+    ///     - configuration: The configuration.
     ///     - appendStrategy: A strategy for appending new pages. By default,
     ///       eventual existing elements are updated with the new ones, and new
     ///       elements are appended.
     public convenience init(
         _ pageSource: some PageSource<Element>,
-        prefetchStrategy: some PaginationPrefetchStrategy = .infiniteScroll(offscreenElementCount: 1),
+        configuration: PaginatedResultsConfiguration,
         appendStrategy: PaginationAppendStrategy<Element, Element.ID> = .updateOrAppend)
     where Element: Identifiable, ID == Element.ID
     {
         self.init(
             pageSource,
             id: \.id,
-            prefetchStrategy: prefetchStrategy,
+            initialElementCount: initialElementCount,
+            prefetchDistance: prefetchDistance,
             appendStrategy: appendStrategy)
     }
     
@@ -490,11 +494,11 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
     
     private func pageDidLoad(_ page: Page<Element>) {
         paginationError = nil
-        elements.append(page: page.elements, with: appendStrategy)
+        elements.append(page: page.elements)
         
         if page.hasNextPage {
             paginationState = .notCompleted
-            if prefetchStrategy._needsPrefetchAfterPageLoaded(elementCount: elements.count) {
+            if elements.count < initialElementCount {
                 Task {
                     await prefetch()
                 }
@@ -502,6 +506,23 @@ public class PaginatedResults<Element, ID: Hashable>: ObservableObject {
         } else {
             paginationState = .completed
         }
+    }
+}
+
+@available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
+public struct PaginatedResultsConfiguration {
+    public var initialElementCount: Int
+    public var prefetchDistance: Int
+    public var maximumElementCount: Int
+    
+    public init(
+        initialElementCount: Int = 1,
+        prefetchDistance: Int = 1,
+        maximumElementCount: Int = .max)
+    {
+        self.initialElementCount = initialElementCount
+        self.prefetchDistance = prefetchDistance
+        self.maximumElementCount = maximumElementCount
     }
 }
 

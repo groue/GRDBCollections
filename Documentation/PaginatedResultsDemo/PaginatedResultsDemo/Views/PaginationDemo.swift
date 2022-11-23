@@ -63,7 +63,7 @@ struct PaginationDemoList: View {
                         pageSize: 50,
                         overlap: 0,
                         delay: .milliseconds(100)),
-                    prefetchStrategy: .infiniteScroll(offscreenElementCount: 50))
+                    prefetchDistance: 50)
                 
             case .slowOverlap:
                 return PaginatedResults(
@@ -72,7 +72,7 @@ struct PaginationDemoList: View {
                         pageSize: 10,
                         overlap: 2,
                         delay: .seconds(1)),
-                    prefetchStrategy: .infiniteScroll(offscreenElementCount: 5))
+                    prefetchDistance: 5)
                 
             case .slowAndFlaky:
                 return PaginatedResults(
@@ -86,7 +86,7 @@ struct PaginationDemoList: View {
                                 throw URLError(.notConnectedToInternet)
                             }
                         }),
-                    prefetchStrategy: .infiniteScroll(offscreenElementCount: 5))
+                    prefetchDistance: 5)
             }
         }
     }
